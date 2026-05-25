@@ -12,8 +12,10 @@ import {
 	WidthType,
 	ExternalHyperlink,
 	ImageRun,
-	PageBreak
+	PageBreak,
+	TableOfContents
 } from 'docx';
+import { normalizeDoc, defaultTocLabel } from '../shared/toc';
 
 interface DocxRun {
 	text: string;
@@ -300,9 +302,19 @@ export function docxJsonToDocument(json: DocxDocument): Document {
 			case 'toc': {
 				children.push(
 					new Paragraph({
-						text: el.label || 'Table of Contents',
+						text: el.label || defaultTocLabel(),
 						heading: HeadingLevel.HEADING_2,
 						spacing: { before: 360, after: 240 }
+					})
+				);
+				children.push(
+					new Paragraph({
+						children: [
+							new TableOfContents(el.label || defaultTocLabel(), {
+								hyperlink: true,
+								headingStyleRange: '2-5'
+							})
+						]
 					})
 				);
 				break;
@@ -314,6 +326,7 @@ export function docxJsonToDocument(json: DocxDocument): Document {
 	const [pageW, pageH] = meta.orientation === 'landscape' ? [pageSize.height, pageSize.width] : [pageSize.width, pageSize.height];
 
 	return new Document({
+		features: { updateFields: true },
 		styles: {
 			default: {
 				document: {
@@ -360,6 +373,7 @@ export function parseDocxJson(input: string): DocxDocument | null {
 export async function generateDocxBuffer(docxJson: string): Promise<Buffer> {
 	const doc = parseDocxJson(docxJson);
 	if (!doc) throw new Error('Invalid docx JSON document');
+	normalizeDoc(doc as { content: any[] });
 	const document = docxJsonToDocument(doc);
 	const buffer = await Packer.toBuffer(document);
 	return Buffer.from(buffer);

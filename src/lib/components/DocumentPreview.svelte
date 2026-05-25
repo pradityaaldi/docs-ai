@@ -2,6 +2,7 @@
 	import { app } from '$lib/stores/app.svelte';
 	import { saveDocument, exportDocx, exportPdf } from '$lib/actions';
 	import CodeEditor from '$lib/components/ui/CodeEditor.svelte';
+	import { normalizeDoc, defaultTocLabel, type TocItem } from '$lib/shared/toc';
 	import prettier from 'prettier/standalone';
 	import * as parserBabel from 'prettier/plugins/babel';
 	import * as parserEstree from 'prettier/plugins/estree';
@@ -187,8 +188,26 @@
 				return `<blockquote style="border-left:4px solid #3b82f6;margin:12px 0;padding:8px 16px;background:#f8fafc;color:#475569;font-style:italic">${escapeHtml(el.text || '')}</blockquote>`;
 			case 'pageBreak':
 				return '__PAGEBREAK__';
-			case 'toc':
-				return `<h2 style="text-align:center;color:#6b7280;font-size:${Math.round(bodySize*1.3*10)/10}pt;margin:24px 0">${escapeHtml(el.label || 'Table of Contents')}</h2>`;
+			case 'toc': {
+				const label = escapeHtml(el.label || defaultTocLabel());
+				const titleSize = Math.round(bodySize * 1.3 * 10) / 10;
+				const items: TocItem[] = Array.isArray(el.items) ? el.items : [];
+				let html = `<div style="margin:24px 0"><div style="text-align:center;color:#1e293b;font-weight:700;font-size:${titleSize}pt;margin-bottom:16px;letter-spacing:0.5px">${label}</div>`;
+				if (items.length === 0) {
+					html += `<div style="text-align:center;color:#94a3b8;font-style:italic;font-size:${bodySize-0.5}pt">(no headings found)</div>`;
+				} else {
+					html += '<div style="display:flex;flex-direction:column;gap:4px">';
+					for (const it of items) {
+						const indent = Math.max(0, (Number(it.level) || 2) - 2) * 20;
+						const txt = escapeHtml(it.text || '');
+						const page = it.page != null ? escapeHtml(String(it.page)) : '';
+						html += `<div style="display:flex;align-items:flex-end;gap:8px;padding-left:${indent}px;line-height:1.4"><span>${txt}</span><span style="flex:1;border-bottom:1px dotted #cbd5e1;margin-bottom:5px;min-width:24px"></span>${page ? `<span style="color:#475569;font-variant-numeric:tabular-nums">${page}</span>` : ''}</div>`;
+					}
+					html += '</div>';
+				}
+				html += '</div>';
+				return html;
+			}
 			default:
 				return '';
 		}
@@ -201,6 +220,7 @@
 		if (!raw) return null;
 		const doc = salvageDoc(raw);
 		if (!doc) return null;
+		normalizeDoc(doc);
 		const meta = doc.meta || {};
 		const font = meta.font || 'Arial';
 		const fs = meta.fontSize || 22;

@@ -82,7 +82,7 @@ The JSON must follow this exact structure:
     { "type": "code", "text": "console.log('hello');" },
     { "type": "quote", "text": "Important callout" },
     { "type": "pageBreak" },
-    { "type": "toc", "label": "Table of Contents" }
+    { "type": "toc", "label": "Daftar Isi" }
   ]
 }
 
@@ -90,7 +90,12 @@ Rules:
 - Always include "meta" with page size, orientation, margins, and font
 - Start with heading level 1 as the document title
 - Use heading level 2 for major sections, level 3 for subsections
-- Use "toc" after the title for table of contents when appropriate
+- TOC tooling: emit a single { "type": "toc", "label": "..." } block — the renderer auto-fills entries
+  from all subsequent headings (level 2-4) until the next toc/pageBreak or end of document. Do NOT
+  hand-write a list of section titles as bullets/paragraphs to fake a TOC. Optional fields:
+    - "items": [{ "text": "...", "level": 2 }] to override auto-fill with custom entries
+    - "minLevel" / "maxLevel": number to widen/narrow the heading range
+  Localize "label" to match the document language (e.g. "Daftar Isi", "Table of Contents", "目次").
 - "runs" gives precise per-character control: bold, italic, underline, strike, color, size, font, link
 - In "text" fields, use **bold**, *italic*, \`code\`, [link](url) inline shortcuts
 - Use "table" for structured data; add "alignments" array if needed

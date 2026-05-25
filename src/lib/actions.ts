@@ -1,4 +1,21 @@
-import { app, type Document } from '$lib/stores/app.svelte';
+import { app, setPhase, type Document } from '$lib/stores/app.svelte';
+
+function stripThink(text: string): string {
+	let s = text.replace(/<think>[\s\S]*?<\/think>/g, '');
+	s = s.replace(/<think>[\s\S]*$/, '');
+	return s;
+}
+
+function extractError(raw: string): string | null {
+	const idx = raw.indexOf('\n__ERROR__:');
+	if (idx < 0) return null;
+	return raw.slice(idx + '\n__ERROR__:'.length).trim();
+}
+
+function stripError(raw: string): string {
+	const idx = raw.indexOf('\n__ERROR__:');
+	return idx >= 0 ? raw.slice(0, idx) : raw;
+}
 
 export async function loadConnectors() {
 	const res = await fetch('/api/connectors');
@@ -54,87 +71,177 @@ export async function deleteDocument(id: string) {
 
 export async function sendMessage() {
 	const active = app.connectors.find(c => c.is_active) || null;
-	if (!app.chatInput.trim() || !app.currentDoc || !active || app.isLoading) return;
+	if (!app.chatInput.trim() || !app.currentDoc || !active || app.isLoading || app.isGenerating) return;
 	const userMessage = app.chatInput;
 	app.chatInput = '';
-	app.isLoading = true;
-	app.progressSections = [];
-	app.activeSection = '';
 
-	const controller = new AbortController();
-	app.abortController = controller;
+	app.status.startedAt = Date.now();
+	app.status.finishedAt = null;
+	app.status.sections = [];
+	app.status.activeSection = '';
+	app.status.bytesReceived = 0;
 
 	app.messages = [...app.messages, { id: crypto.randomUUID(), document_id: app.currentDoc.id, role: 'user', content: userMessage, created_at: new Date().toISOString() }];
 
-	try {
-		const res = await fetch('/api/chat', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ document_id: app.currentDoc.id, message: userMessage }),
-			signal: controller.signal
-		});
+	const assistantMsgId = crypto.randomUUID();
+	app.messages = [...app.messages, { id: assistantMsgId, document_id: app.currentDoc.id, role: 'assistant', content: '', created_at: new Date().toISOString() }];
+	app.status.attachedMsgId = assistantMsgId;
+	setPhase('connecting', 'Connecting to AI…');
 
-		if (!res.ok) {
-			const err = await res.json();
-			alert(err.error || 'Error sending message');
-			app.isLoading = false;
-			app.progressSections = [];
-			return;
-		}
+	const chatController = new AbortController();
+	const genController = new AbortController();
+	app.abortController = chatController;
+	app.generateAbortController = genController;
+	app.isLoading = true;
+	app.isGenerating = true;
 
-		const reader = res.body?.getReader();
-		if (!reader) throw new Error('No response stream');
-		const decoder = new TextDecoder();
-		let assistantContent = '';
-		const tempMsgId = crypto.randomUUID();
+	const chatPromise = streamChat(userMessage, assistantMsgId, chatController.signal).catch((e) => {
+		console.error('[chat] failed', e);
+		return { error: (e as Error).message };
+	});
 
-		app.messages = [...app.messages, { id: tempMsgId, document_id: app.currentDoc.id, role: 'assistant', content: '', created_at: new Date().toISOString() }];
+	const genPromise = streamGenerate(userMessage, genController.signal).catch((e) => {
+		console.error('[gen] failed', e);
+		return { error: (e as Error).message };
+	});
 
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			const text = decoder.decode(value, { stream: true });
-			assistantContent += text;
-			app.messages = app.messages.map((m) => (m.id === tempMsgId ? { ...m, content: assistantContent } : m));
-			trackProgress(assistantContent);
-		}
+	const [chatRes, genRes] = await Promise.all([chatPromise, genPromise]);
 
-		const refreshRes = await fetch(`/api/documents/${app.currentDoc.id}`);
-		if (refreshRes.ok) app.currentDoc = await refreshRes.json();
-		app.progressSections = [];
-		app.activeSection = '';
-	} catch (err) {
-		if ((err as Error).name === 'AbortError') {
-			const lastMsg = app.messages[app.messages.length - 1];
-			if (lastMsg?.role === 'assistant' && lastMsg.content) {
-				await fetch(`/api/documents/${app.currentDoc!.id}/messages`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ role: 'assistant', content: lastMsg.content })
-				});
-				await fetch(`/api/documents/${app.currentDoc!.id}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ title: app.currentDoc!.title, content: lastMsg.content })
-				});
-				app.currentDoc = { ...app.currentDoc!, content: lastMsg.content };
-			}
-		} else {
-			console.error(err);
-			alert('Error: ' + (err as Error).message);
-		}
-		app.progressSections = [];
-		app.activeSection = '';
-	} finally {
-		app.isLoading = false;
-		app.abortController = null;
+	app.isLoading = false;
+	app.isGenerating = false;
+	app.abortController = null;
+	app.generateAbortController = null;
+
+	const chatErr = chatRes && 'error' in chatRes ? chatRes.error : null;
+	const genErr = genRes && 'error' in genRes ? genRes.error : null;
+	const chatAborted = chatRes && 'aborted' in chatRes;
+	const genAborted = genRes && 'aborted' in genRes;
+
+	if (chatAborted || genAborted) {
+		setPhase('aborted', 'Stopped by user.');
+	} else if (chatErr || genErr) {
+		setPhase('error', genErr ? 'Document generation failed' : 'Chat failed', genErr || chatErr || '');
+	} else {
+		setPhase('idle', '');
 	}
 }
 
-function trackProgress(content: string) {
-	let cleaned = content.replace(/<think>[\s\S]*?<\/think>/g, '');
-	const braceIdx = cleaned.indexOf('{');
-	if (braceIdx > 0) cleaned = cleaned.slice(braceIdx);
+async function streamChat(userMessage: string, assistantMsgId: string, signal: AbortSignal): Promise<{ ok: true } | { error: string } | { aborted: true }> {
+	if (!app.currentDoc) return { error: 'No document' };
+	const res = await fetch('/api/chat', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ document_id: app.currentDoc.id, message: userMessage }),
+		signal
+	});
+
+	if (!res.ok) {
+		const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+		return { error: err.error || `HTTP ${res.status}` };
+	}
+
+	const reader = res.body?.getReader();
+	if (!reader) return { error: 'No response stream' };
+	const decoder = new TextDecoder();
+	let raw = '';
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			raw += decoder.decode(value, { stream: true });
+			const err = extractError(raw);
+			if (err) return { error: err };
+			const visible = stripThink(stripError(raw)).trimStart();
+			app.messages = app.messages.map((m) => (m.id === assistantMsgId ? { ...m, content: visible } : m));
+		}
+	} catch (e) {
+		if ((e as Error).name === 'AbortError') return { aborted: true };
+		throw e;
+	}
+
+	const finalErr = extractError(raw);
+	if (finalErr) return { error: finalErr };
+	return { ok: true };
+}
+
+async function streamGenerate(userMessage: string, signal: AbortSignal): Promise<{ ok: true } | { error: string } | { aborted: true }> {
+	if (!app.currentDoc) return { error: 'No document' };
+	const res = await fetch('/api/generate', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ document_id: app.currentDoc.id, message: userMessage }),
+		signal
+	});
+
+	if (!res.ok) {
+		const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+		return { error: err.error || `HTTP ${res.status}` };
+	}
+
+	const reader = res.body?.getReader();
+	if (!reader) return { error: 'No response stream' };
+	const decoder = new TextDecoder();
+	let content = '';
+
+	if (app.status.phase === 'connecting') setPhase('document-streaming', 'Generating document…');
+	app.status.lastChunkAt = Date.now();
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			content += decoder.decode(value, { stream: true });
+			app.status.bytesReceived = content.length;
+			app.status.lastChunkAt = Date.now();
+			app.status.thinking = /<think>(?![\s\S]*<\/think>)/.test(content);
+			const err = extractError(content);
+			if (err) return { error: err };
+			const stripped = stripError(content);
+			trackGenerateProgress(stripped);
+			updateLivePreview(stripped);
+		}
+	} catch (e) {
+		if ((e as Error).name === 'AbortError') {
+			const refreshRes = await fetch(`/api/documents/${app.currentDoc!.id}`).catch(() => null);
+			if (refreshRes?.ok) app.currentDoc = await refreshRes.json();
+			return { aborted: true };
+		}
+		throw e;
+	}
+
+	const finalErr = extractError(content);
+	if (finalErr) return { error: finalErr };
+
+	const refreshRes = await fetch(`/api/documents/${app.currentDoc!.id}`).catch(() => null);
+	if (refreshRes?.ok) app.currentDoc = await refreshRes.json();
+	return { ok: true };
+}
+
+function cleanDocJSON(raw: string): string {
+	let s = raw.replace(/<think>[\s\S]*?<\/think>/g, '');
+	s = s.replace(/<think>[\s\S]*$/, '');
+	s = s.replace(/```(?:json)?\s*/gi, '');
+	s = s.replace(/```\s*$/g, '');
+	const braceIdx = s.indexOf('{');
+	if (braceIdx < 0) return '';
+	s = s.slice(braceIdx);
+	return s.trim();
+}
+
+function updateLivePreview(raw: string) {
+	if (!app.currentDoc) return;
+	const docContent = cleanDocJSON(raw);
+	if (docContent.length < 50) return;
+	if (!/"content"\s*:\s*\[\s*\{/.test(docContent)) return;
+	if (app.currentDoc.content !== docContent) {
+		app.currentDoc = { ...app.currentDoc, content: docContent };
+	}
+}
+
+function trackGenerateProgress(content: string) {
+	let cleaned = cleanDocJSON(content);
+	if (!cleaned) return;
 	try {
 		const doc = JSON.parse(cleaned);
 		if (!doc || !Array.isArray(doc.content)) return;
@@ -143,8 +250,8 @@ function trackProgress(content: string) {
 			if (el.type === 'heading' && el.text) found.push(el.text);
 		}
 		if (found.length > 0) {
-			app.activeSection = found[found.length - 1];
-			app.progressSections = found;
+			app.status.activeSection = found[found.length - 1];
+			app.status.sections = found;
 		}
 	} catch { /* incomplete JSON during streaming */ }
 }
@@ -152,6 +259,9 @@ function trackProgress(content: string) {
 export async function stopGeneration() {
 	if (app.abortController) {
 		app.abortController.abort();
+	}
+	if (app.generateAbortController) {
+		app.generateAbortController.abort();
 	}
 }
 

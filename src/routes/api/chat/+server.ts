@@ -2,11 +2,10 @@ import { streamAIResponse } from '$lib/server/ai';
 import getDb from '$lib/server/db';
 import type { RequestHandler } from './$types';
 
-function stripThinkingBlocks(text: string): string {
-	let result = text.replace(/<think>[\s\S]*?<\/think>/g, '');
-	const braceIdx = result.indexOf('{');
-	if (braceIdx > 0) result = result.slice(braceIdx);
-	return result;
+function plainText(text: string): string {
+	let s = text.replace(/<think>[\s\S]*?<\/think>/g, '');
+	s = s.replace(/<think>[\s\S]*$/, '');
+	return s;
 }
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -44,104 +43,103 @@ export const POST: RequestHandler = async ({ request }) => {
 	const history = db.prepare('SELECT role, content FROM messages WHERE document_id = ? ORDER BY created_at ASC')
 		.all(document_id) as { role: string; content: string }[];
 
-	const systemPrompt = `You are a professional document generator. You output documents as DOCX JSON — a structured JSON format that maps directly to Word document elements.
-
-IMPORTANT: Output ONLY valid JSON — no conversational text, no markdown, no code fences. Just the raw JSON object.
-
-The JSON must follow this exact structure:
-{
-  "meta": {
-    "pageSize": "A4",
-    "orientation": "portrait",
-    "marginTop": 1440,
-    "marginRight": 1440,
-    "marginBottom": 1440,
-    "marginLeft": 1440,
-    "font": "Arial",
-    "fontSize": 22,
-    "lineSpacing": 276
-  },
-  "content": [
-    { "type": "heading", "level": 1, "text": "Document Title" },
-    { "type": "heading", "level": 2, "text": "Section" },
-    { "type": "paragraph", "text": "Text with **bold** and *italic*." },
-    { "type": "paragraph", "text": "Centered text", "alignment": "center" },
-    { "type": "paragraph", "runs": [
-      { "text": "Bold", "bold": true },
-      { "text": " normal text " },
-      { "text": "red", "color": "dc2626" },
-      { "text": "link", "link": "https://example.com" }
-    ]},
-    { "type": "bullet", "items": ["Item one", "Item two"] },
-    { "type": "numbered", "items": ["Step one", "Step two"] },
-    { "type": "table", "headers": ["Col A", "Col B"], "rows": [["A1", "B1"], ["A2", "B2"]] },
-    { "type": "hr" },
-    { "type": "code", "text": "console.log('hello');" },
-    { "type": "quote", "text": "Important callout" },
-    { "type": "pageBreak" },
-    { "type": "toc", "label": "Table of Contents" }
-  ]
-}
-
-Rules:
-- Always include "meta" with page size, orientation, margins, and font
-- Start with heading level 1 as the document title
-- Use heading level 2 for major sections, level 3 for subsections
-- Use "toc" after the title for table of contents when appropriate
-- "runs" gives precise per-character control: bold, italic, underline, strike, color, size, font, link
-- In "text" fields, use **bold**, *italic*, \`code\`, [link](url) inline shortcuts
-- Use "table" for structured data; add "alignments" array if needed
-- Be thorough and detailed — real business content, not placeholders
-- When asked to modify, output the COMPLETE updated JSON
-- NEVER wrap output in <think> tags or code fences — output ONLY the raw JSON
+	const systemPrompt = `You are a helpful document writing assistant who ONLY acknowledges requests. You are a conversation partner — NOT the document generator. A separate automated system handles all document creation.
 
 Current document title: "${document.title}"
-${document.content ? `Current document content:\n${document.content}\n\nPlease modify or continue based on the user's request.` : 'This is a new document. Please create a complete document based on the user\'s request.'}`;
+${document.content ? 'The document already has content. The user may ask about it.' : 'No document content yet.'}
 
-	const chatMessages = history.map((m) => ({
-		role: m.role as 'user' | 'assistant',
-		content: m.content
-	}));
+CRITICAL RULES:
+- ONLY respond with 1-3 brief sentences acknowledging what you'll do. That's it. Nothing more.
+- Example: "Sure, I'll create a short business proposal for your tech startup. Give me a moment."
+- Example: "Got it, let me update the marketing section with a more persuasive tone."
+- NEVER output document content, outlines, drafts, sections, or any part of the actual document.
+- NEVER use markdown headings, bullet lists, or formatting — you're just chatting.
+- DO NOT write "Here's the proposal:", "Here's a draft:", "Version:", or anything similar.
+- When in doubt, just say "I'll handle that for you. The document will appear on the right."`;
 
-	try {
-		const stream = await streamAIResponse(connector, chatMessages, systemPrompt);
+	const chatMessages = history.map((m) => {
+		let content = m.content;
+		if (m.role === 'assistant') {
+			const stripped = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+			const braceIdx = stripped.indexOf('{');
+			if (braceIdx >= 0) {
+				try {
+					const parsed = JSON.parse(stripped.slice(braceIdx));
+					if (parsed && parsed.meta && parsed.content) {
+						content = '[Document generated — see preview panel]';
+					}
+				} catch {}
+			}
+		}
+		return { role: m.role as 'user' | 'assistant', content };
+	});
 
-		let fullResponse = '';
-		const decoder = new TextDecoder();
-		const signal = request.signal;
-		const transformStream = new TransformStream({
-			transform(chunk, controller) {
-				const text = decoder.decode(chunk, { stream: true });
-				fullResponse += text;
-				controller.enqueue(chunk);
-			},
-			flush() {
-				const remaining = decoder.decode();
-				fullResponse += remaining;
-				const cleaned = stripThinkingBlocks(fullResponse);
-				if (cleaned && !signal.aborted) {
-					const assistantMsgId = crypto.randomUUID();
-					db.prepare(`INSERT INTO messages (id, document_id, role, content) VALUES (?, ?, 'assistant', ?)`)
-						.run(assistantMsgId, document_id, cleaned);
-					db.prepare(`UPDATE documents SET content = ?, updated_at = datetime('now') WHERE id = ?`)
-						.run(cleaned, document_id);
+	const t0 = Date.now();
+	const signal = request.signal;
+	let fullResponse = '';
+
+	const wireStream = new ReadableStream<Uint8Array>({
+		start(controller) {
+			const encoder = new TextEncoder();
+			const decoder = new TextDecoder();
+			let closed = false;
+
+			const hbTimer = setInterval(() => {
+				if (closed) return;
+				try { controller.enqueue(encoder.encode(' ')); } catch { closed = true; }
+			}, 3000);
+
+			try { controller.enqueue(encoder.encode(' ')); } catch {}
+
+			(async () => {
+				try {
+					console.log(`[CHAT] calling upstream +${Date.now() - t0}ms`);
+					const upstream = await streamAIResponse(connector, chatMessages, systemPrompt, signal);
+					console.log(`[CHAT] upstream headers +${Date.now() - t0}ms`);
+					const reader = upstream.getReader();
+
+					while (true) {
+						if (signal.aborted) {
+							reader.cancel().catch(() => {});
+							break;
+						}
+						const { done, value } = await reader.read();
+						if (done) break;
+						const text = decoder.decode(value, { stream: true });
+						fullResponse += text;
+						try { controller.enqueue(value); } catch { break; }
+					}
+					fullResponse += decoder.decode();
+
+					const cleaned = plainText(fullResponse).trim();
+					console.log(`[CHAT] flush rawLen=${fullResponse.length} cleanLen=${cleaned.length} aborted=${signal.aborted} elapsed=${Date.now() - t0}ms`);
+					if (cleaned && !signal.aborted) {
+						const assistantMsgId = crypto.randomUUID();
+						db.prepare(`INSERT INTO messages (id, document_id, role, content) VALUES (?, ?, 'assistant', ?)`)
+							.run(assistantMsgId, document_id, cleaned);
+						db.prepare(`UPDATE documents SET updated_at = datetime('now') WHERE id = ?`)
+							.run(document_id);
+					}
+				} catch (e: any) {
+					console.error(`[CHAT] upstream error +${Date.now() - t0}ms`, e?.message || e);
+					try {
+						controller.enqueue(encoder.encode(`\n__ERROR__:${e?.message || String(e)}`));
+					} catch {}
+				} finally {
+					closed = true;
+					clearInterval(hbTimer);
+					try { controller.close(); } catch {}
 				}
-			}
-		});
+			})();
+		}
+	});
 
-		const transformedStream = stream.pipeThrough(transformStream);
-
-		return new Response(transformedStream, {
-			headers: {
-				'Content-Type': 'text/plain; charset=utf-8',
-				'Cache-Control': 'no-cache',
-				Connection: 'keep-alive'
-			}
-		});
-	} catch (err: any) {
-		return new Response(JSON.stringify({ error: err.message }), {
-			status: 500,
-			headers: { 'Content-Type': 'application/json' }
-		});
-	}
+	return new Response(wireStream, {
+		headers: {
+			'Content-Type': 'text/plain; charset=utf-8',
+			'Cache-Control': 'no-cache',
+			Connection: 'keep-alive',
+			'X-Accel-Buffering': 'no'
+		}
+	});
 };

@@ -23,7 +23,8 @@ export interface AIStreamChunk {
 export async function streamAIResponse(
 	connector: AIConnector,
 	messages: ChatMessage[],
-	systemPrompt: string
+	systemPrompt: string,
+	signal?: AbortSignal
 ): Promise<ReadableStream<Uint8Array>> {
 	const { provider, base_url, model_name, api_key } = connector;
 
@@ -34,11 +35,11 @@ export async function streamAIResponse(
 
 	switch (provider) {
 		case 'openai':
-			return streamOpenAI(base_url, model_name, api_key, formattedMessages);
+			return streamOpenAI(base_url, model_name, api_key, formattedMessages, signal);
 		case 'anthropic':
-			return streamAnthropic(base_url, model_name, api_key, formattedMessages);
+			return streamAnthropic(base_url, model_name, api_key, formattedMessages, signal);
 		case 'gemini':
-			return streamGemini(base_url, model_name, api_key, messages, systemPrompt);
+			return streamGemini(base_url, model_name, api_key, messages, systemPrompt, signal);
 		default:
 			throw new Error(`Unknown provider: ${provider}`);
 	}
@@ -48,22 +49,35 @@ async function streamOpenAI(
 	baseUrl: string,
 	model: string,
 	apiKey: string,
-	messages: { role: string; content: string }[]
+	messages: { role: string; content: string }[],
+	signal?: AbortSignal
 ): Promise<ReadableStream<Uint8Array>> {
 	const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+	const key = (apiKey || '').trim();
 
-	const response = await fetch(url, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
-		},
-		body: JSON.stringify({
-			model,
-			messages,
-			stream: true
-		})
-	});
+	const timeoutController = new AbortController();
+	const timeoutId = setTimeout(() => timeoutController.abort(new Error('Upstream connect timeout after 60s')), 60000);
+	signal?.addEventListener('abort', () => timeoutController.abort(signal.reason), { once: true });
+
+	let response: Response;
+	try {
+		response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(key ? { Authorization: `Bearer ${key}` } : {})
+			},
+			body: JSON.stringify({
+				model,
+				messages,
+				stream: true,
+				max_tokens: 16384
+			}),
+			signal: timeoutController.signal
+		});
+	} finally {
+		clearTimeout(timeoutId);
+	}
 
 	if (!response.ok) {
 		const error = await response.text();
@@ -72,44 +86,93 @@ async function streamOpenAI(
 
 	if (!response.body) throw new Error('No response body');
 
-	// Transform SSE stream to extract text deltas
-	const reader = response.body.getReader();
+	return parseSSE(response.body, (event) => {
+		try {
+			const parsed = JSON.parse(event);
+			const choice = parsed.choices?.[0];
+			const text = choice?.delta?.content || null;
+			const done = !!choice?.finish_reason;
+			return { text, done };
+		} catch {
+			return { text: null };
+		}
+	});
+}
+
+type ExtractResult = { text: string | null; done?: boolean };
+
+function parseSSE(
+	body: ReadableStream<Uint8Array>,
+	extract: (data: string) => ExtractResult,
+	idleMs = 10000
+): ReadableStream<Uint8Array> {
+	const reader = body.getReader();
 	const decoder = new TextDecoder();
+	const encoder = new TextEncoder();
+	let buffer = '';
+	let sawDone = false;
+
+	const readWithIdleTimeout = (): Promise<{ done: boolean; value?: Uint8Array; timedOut?: boolean }> => {
+		return new Promise((resolve, reject) => {
+			let settled = false;
+			const t = setTimeout(() => {
+				if (settled) return;
+				settled = true;
+				console.warn(`[parseSSE] idle timeout after ${idleMs}ms — forcing close`);
+				resolve({ done: true, timedOut: true });
+			}, idleMs);
+			reader.read().then(
+				(r) => { if (settled) return; settled = true; clearTimeout(t); resolve(r); },
+				(e) => { if (settled) return; settled = true; clearTimeout(t); reject(e); }
+			);
+		});
+	};
 
 	return new ReadableStream({
 		async pull(controller) {
 			try {
-				const { done, value } = await reader.read();
+				const { done, value, timedOut } = await readWithIdleTimeout();
 				if (done) {
+					if (buffer.trim() && !timedOut) {
+						const line = buffer.trim();
+						if (line.startsWith('data: ')) {
+							const data = line.slice(6);
+							if (data !== '[DONE]') {
+								const r = extract(data);
+								if (r.text) controller.enqueue(encoder.encode(r.text));
+							}
+						}
+					}
+					if (timedOut) {
+						reader.cancel('idle timeout').catch(() => {});
+					}
 					controller.close();
 					return;
 				}
 
-				const text = decoder.decode(value, { stream: true });
-				const lines = text.split('\n');
-
-				for (const line of lines) {
-					const trimmed = line.trim();
-					if (!trimmed || !trimmed.startsWith('data: ')) continue;
-					const data = trimmed.slice(6);
-					if (data === '[DONE]') continue;
-
-					try {
-						const parsed = JSON.parse(data);
-						const content = parsed.choices?.[0]?.delta?.content;
-						if (content) {
-							controller.enqueue(new TextEncoder().encode(content));
-						}
-					} catch {
-						// Skip malformed JSON chunks
-					}
+				buffer += decoder.decode(value, { stream: true });
+				let nlIdx: number;
+				while ((nlIdx = buffer.indexOf('\n')) !== -1) {
+					const line = buffer.slice(0, nlIdx).trim();
+					buffer = buffer.slice(nlIdx + 1);
+					if (!line || !line.startsWith('data: ')) continue;
+					const data = line.slice(6);
+					if (data === '[DONE]') { sawDone = true; continue; }
+					const r = extract(data);
+					if (r.text) controller.enqueue(encoder.encode(r.text));
+					if (r.done) sawDone = true;
+				}
+				if (sawDone) {
+					console.log('[parseSSE] done sentinel/finish_reason — closing');
+					reader.cancel('done sentinel').catch(() => {});
+					controller.close();
 				}
 			} catch (err) {
 				controller.error(err);
 			}
 		},
-		cancel() {
-			reader.cancel();
+		cancel(reason) {
+			reader.cancel(reason).catch(() => {});
 		}
 	});
 }
@@ -118,7 +181,8 @@ async function streamAnthropic(
 	baseUrl: string,
 	model: string,
 	apiKey: string,
-	messages: { role: string; content: string }[]
+	messages: { role: string; content: string }[],
+	signal?: AbortSignal
 ): Promise<ReadableStream<Uint8Array>> {
 	const url = `${baseUrl.replace(/\/+$/, '')}/v1/messages`;
 
@@ -139,7 +203,8 @@ async function streamAnthropic(
 			system: systemMsg,
 			messages: chatMsgs,
 			stream: true
-		})
+		}),
+		signal
 	});
 
 	if (!response.ok) {
@@ -149,42 +214,17 @@ async function streamAnthropic(
 
 	if (!response.body) throw new Error('No response body');
 
-	const reader = response.body.getReader();
-	const decoder = new TextDecoder();
-
-	return new ReadableStream({
-		async pull(controller) {
-			try {
-				const { done, value } = await reader.read();
-				if (done) {
-					controller.close();
-					return;
-				}
-
-				const text = decoder.decode(value, { stream: true });
-				const lines = text.split('\n');
-
-				for (const line of lines) {
-					const trimmed = line.trim();
-					if (!trimmed.startsWith('data: ')) continue;
-					const data = trimmed.slice(6);
-
-					try {
-						const parsed = JSON.parse(data);
-						if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-							controller.enqueue(new TextEncoder().encode(parsed.delta.text));
-						}
-					} catch {
-						// Skip malformed JSON
-					}
-				}
-			} catch (err) {
-				controller.error(err);
+	return parseSSE(response.body, (event) => {
+		try {
+			const parsed = JSON.parse(event);
+			if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+				return { text: parsed.delta.text };
 			}
-		},
-		cancel() {
-			reader.cancel();
-		}
+			if (parsed.type === 'message_stop') {
+				return { text: null, done: true };
+			}
+		} catch {}
+		return { text: null };
 	});
 }
 
@@ -268,7 +308,8 @@ async function streamGemini(
 	model: string,
 	apiKey: string,
 	messages: ChatMessage[],
-	systemPrompt: string
+	systemPrompt: string,
+	signal?: AbortSignal
 ): Promise<ReadableStream<Uint8Array>> {
 	const url = `${baseUrl.replace(/\/+$/, '')}/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
@@ -289,7 +330,8 @@ async function streamGemini(
 				temperature: 0.7,
 				maxOutputTokens: 8192
 			}
-		})
+		}),
+		signal
 	});
 
 	if (!response.ok) {
@@ -299,42 +341,15 @@ async function streamGemini(
 
 	if (!response.body) throw new Error('No response body');
 
-	const reader = response.body.getReader();
-	const decoder = new TextDecoder();
-
-	return new ReadableStream({
-		async pull(controller) {
-			try {
-				const { done, value } = await reader.read();
-				if (done) {
-					controller.close();
-					return;
-				}
-
-				const text = decoder.decode(value, { stream: true });
-				const lines = text.split('\n');
-
-				for (const line of lines) {
-					const trimmed = line.trim();
-					if (!trimmed.startsWith('data: ')) continue;
-					const data = trimmed.slice(6);
-
-					try {
-						const parsed = JSON.parse(data);
-						const textPart = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-						if (textPart) {
-							controller.enqueue(new TextEncoder().encode(textPart));
-						}
-					} catch {
-						// Skip malformed JSON
-					}
-				}
-			} catch (err) {
-				controller.error(err);
-			}
-		},
-		cancel() {
-			reader.cancel();
+	return parseSSE(response.body, (event) => {
+		try {
+			const parsed = JSON.parse(event);
+			const cand = parsed.candidates?.[0];
+			const text = cand?.content?.parts?.[0]?.text || null;
+			const done = !!cand?.finishReason;
+			return { text, done };
+		} catch {
+			return { text: null };
 		}
 	});
 }

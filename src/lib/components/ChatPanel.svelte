@@ -24,9 +24,34 @@
 	function scrollToBottom(smooth = true) {
 		const el = scrollContainer;
 		if (!el) return;
-		el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'instant' });
 		autoScroll = true;
 		showScrollButton = false;
+
+		if (!smooth) {
+			el.scrollTo({ top: el.scrollHeight, behavior: 'instant' });
+			return;
+		}
+
+		const start = el.scrollTop;
+		const end = el.scrollHeight - el.clientHeight;
+		const distance = end - start;
+		const duration = 400;
+		const startTime = performance.now();
+
+		function easeOutCubic(t: number): number {
+			return 1 - Math.pow(1 - t, 3);
+		}
+
+		function animate(now: number) {
+			const elapsed = now - startTime;
+			const progress = Math.min(elapsed / duration, 1);
+			el!.scrollTop = start + distance * easeOutCubic(progress);
+			if (progress < 1) {
+				requestAnimationFrame(animate);
+			}
+		}
+
+		requestAnimationFrame(animate);
 	}
 
 	$effect(() => {
@@ -164,7 +189,8 @@
 		</div>
 	</div>
 
-	<div class="flex-1 overflow-y-auto px-4 py-4 space-y-5 relative" bind:this={scrollContainer} onscroll={handleScroll}>
+	<div class="flex-1 relative">
+		<div class="absolute inset-0 overflow-y-auto px-4 py-4 space-y-5" bind:this={scrollContainer} onscroll={handleScroll}>
 		{#if app.messages.length === 0 && !app.isLoading}
 			<div class="flex flex-col items-center justify-center h-full text-center px-6">
 				<div class="w-12 h-12 rounded-xl bg-[var(--bg-component)] border border-[var(--border-base)] flex items-center justify-center mb-4">
@@ -224,16 +250,15 @@
 				</div>
 			</div>
 		{/if}
+		</div>
 
-		{#if showScrollButton}
-			<button
-				onclick={() => scrollToBottom()}
-				class="sticky bottom-0 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-[var(--bg-component)] border border-[var(--border-base)] shadow-lg flex items-center justify-center hover:bg-[var(--bg-component-hover)] transition-colors cursor-pointer z-10"
-				title="Scroll to bottom"
-			>
-				<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7l4 4 4-4" stroke="var(--fg-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-			</button>
-		{/if}
+		<button
+			onclick={() => scrollToBottom()}
+			class="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-[var(--bg-component)] border border-[var(--border-base)] shadow-lg flex items-center justify-center hover:bg-[var(--bg-component-hover)] transition-all duration-300 cursor-pointer z-10 {showScrollButton ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-90 pointer-events-none'}"
+			title="Scroll to bottom"
+		>
+			<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7l4 4 4-4" stroke="var(--fg-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+		</button>
 	</div>
 
 	<div class="border-t border-[var(--border-base)] bg-[var(--bg-subtle)]">

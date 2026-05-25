@@ -43,6 +43,10 @@
 	let testingConnector = $state(false);
 	let testResult = $state<{ success: boolean; error?: string } | null>(null);
 	let previewTab = $state<'preview' | 'code'>('preview');
+	let zoom = $state(-1);
+	let previewContainer = $state<HTMLElement | null>(null);
+	let fitZoom = $derived(previewContainer ? (previewContainer.clientWidth - 64) / 816 : 1);
+	let effectiveZoom = $derived(zoom === -1 ? fitZoom : zoom);
 
 	function escapeHtml(s: string): string {
 		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -537,7 +541,7 @@
 				{:else}
 					<span class="text-lg font-semibold text-[var(--text-secondary)]">No document selected</span>
 				{/if}
-				<div class="flex gap-2">
+				<div class="flex items-center gap-2">
 					<div class="flex bg-[var(--bg-primary)] rounded">
 						<button onclick={() => previewTab = 'preview'} class="px-3 py-1 text-xs rounded-l {previewTab === 'preview' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:text-white'} transition-colors cursor-pointer">
 							Preview
@@ -546,6 +550,14 @@
 							Code
 						</button>
 					</div>
+					{#if previewTab === 'preview'}
+						<div class="flex items-center gap-1 bg-[var(--bg-primary)] rounded px-1">
+							<button onclick={() => zoom = Math.max(0.25, (zoom === -1 ? fitZoom : zoom) - 0.1)} class="px-1.5 py-0.5 text-xs text-[var(--text-secondary)] hover:text-white transition-colors cursor-pointer" title="Zoom out">−</button>
+							<span class="text-xs text-[var(--text-secondary)] min-w-[3ch] text-center">{Math.round(effectiveZoom * 100)}%</span>
+							<button onclick={() => zoom = Math.min(3, (zoom === -1 ? fitZoom : zoom) + 0.1)} class="px-1.5 py-0.5 text-xs text-[var(--text-secondary)] hover:text-white transition-colors cursor-pointer" title="Zoom in">+</button>
+							<button onclick={() => zoom = -1} class="px-1.5 py-0.5 text-xs {zoom === -1 ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:text-white'} transition-colors cursor-pointer" title="Fit to width">Fit</button>
+						</div>
+					{/if}
 					<button onclick={exportDocx} disabled={!currentDoc} class="px-3 py-1 text-sm bg-[var(--bg-tertiary)] hover:bg-[var(--border)] disabled:opacity-50 rounded transition-colors cursor-pointer">
 						DOCX
 					</button>
@@ -556,15 +568,30 @@
 			</div>
 			<div class="flex-1 overflow-hidden">
 				{#if previewTab === 'preview'}
-					<div class="h-full overflow-y-auto p-6 bg-white text-gray-900">
-						{#if currentDoc?.content}
-							<div class="prose prose-sm max-w-none">{@html renderPreview(currentDoc.content)}</div>
-						{:else}
-							<div class="text-center text-gray-400 py-8">
-								<p>Document preview will appear here.</p>
-								<p class="text-sm mt-2">Chat with AI to generate content.</p>
+					<div class="h-full overflow-auto bg-[#f1f3f4]" bind:this={previewContainer}>
+						<div class="flex justify-center py-8">
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								style="width: {Math.round(816 * effectiveZoom)}px; height: {Math.round(1056 * effectiveZoom)}px; transition: width 0.1s, height 0.1s"
+							>
+								<div
+									class="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.08)] text-gray-900"
+									style="transform: scale({effectiveZoom}); transform-origin: top left; width: 816px; min-height: 1056px"
+									onwheel={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoom = Math.max(0.25, Math.min(3, (zoom === -1 ? fitZoom : zoom) + (e.deltaY > 0 ? -0.05 : 0.05))); } }}
+								>
+									<div class="p-16">
+										{#if currentDoc?.content}
+											<div class="prose prose-sm max-w-none">{@html renderPreview(currentDoc.content)}</div>
+										{:else}
+											<div class="text-center text-gray-400 py-8">
+												<p>Document preview will appear here.</p>
+												<p class="text-sm mt-2">Chat with AI to generate content.</p>
+											</div>
+										{/if}
+									</div>
+								</div>
 							</div>
-						{/if}
+						</div>
 					</div>
 				{:else}
 					<div class="h-full flex flex-col bg-[var(--bg-primary)]">

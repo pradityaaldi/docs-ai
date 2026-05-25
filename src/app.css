@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --border: #475569;
+  --success: #22c55e;
+  --danger: #ef4444;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border);
+}
+
+/* Markdown content styling in preview (white background) */
+.markdown-content h1 { font-size: 2em; font-weight: 700; margin: 0.67em 0; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.3em; color: #111827; }
+.markdown-content h2 { font-size: 1.5em; font-weight: 600; margin: 0.83em 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; color: #1f2937; }
+.markdown-content h3 { font-size: 1.17em; font-weight: 600; margin: 1em 0; color: #374151; }
+.markdown-content p { margin: 1em 0; line-height: 1.7; color: #374151; }
+.markdown-content ul, .markdown-content ol { margin: 1em 0; padding-left: 2em; color: #374151; }
+.markdown-content li { margin: 0.5em 0; line-height: 1.7; }
+.markdown-content code { background: #f3f4f6; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; color: #dc2626; }
+.markdown-content pre { background: #f9fafb; padding: 1em; border-radius: 6px; overflow-x: auto; margin: 1em 0; border: 1px solid #e5e7eb; }
+.markdown-content pre code { background: none; padding: 0; color: #374151; }
+.markdown-content blockquote { border-left: 4px solid #3b82f6; margin: 1em 0; padding: 0.5em 1em; background: #eff6ff; color: #1e40af; }
+.markdown-content table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+.markdown-content th, .markdown-content td { border: 1px solid #d1d5db; padding: 0.5em 1em; text-align: left; }
+.markdown-content th { background: #f9fafb; font-weight: 600; color: #111827; }
+.markdown-content hr { border: none; border-top: 1px solid #d1d5db; margin: 2em 0; }
+.markdown-content strong { color: #111827; }
+.markdown-content em { color: #374151; }
+.markdown-content a { color: #2563eb; text-decoration: underline; }
+.markdown-content br + br { display: none; }

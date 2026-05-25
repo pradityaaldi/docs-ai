@@ -12,18 +12,14 @@
 	});
 </script>
 
-<div class="relative flex h-screen flex-col items-start overflow-hidden lg:flex-row">
-	<div class="hidden h-screen w-[220px] lg:flex">
+<div class="h-dvh flex overflow-hidden">
+	<div class="hidden h-full w-[220px] lg:flex">
 		<Sidebar />
 	</div>
-	<main class="flex h-screen w-full flex-col overflow-auto bg-[var(--bg-base)]">
-		<div class="flex h-full w-full flex-col">
-			<div class="flex flex-1 min-w-0">
-				<ChatPanel />
-				<DocumentPreview />
-			</div>
-		</div>
-	</main>
+	<div class="flex-1 flex min-w-0">
+		<ChatPanel />
+		<DocumentPreview />
+	</div>
 </div>
 
 <SettingsModal />

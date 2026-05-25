@@ -72,17 +72,17 @@
 		</div>
 	</div>
 
-	<div class="bg-[var(--bg-subtle)] sticky bottom-0">
-		<div class="px-3 py-3 border-t border-[var(--border-base)]">
+	<div class="sticky bottom-0 px-3 pb-3">
+		<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-3">
 			{#if app.activeConnector}
-				<div class="flex items-center gap-x-2 px-2">
+				<div class="flex items-center gap-x-2 min-w-0">
 					<span class="w-1.5 h-1.5 rounded-full bg-[var(--tag-green-text)] shrink-0"></span>
 					<span class="text-xs text-[var(--fg-subtle)] truncate">{app.activeConnector.name}</span>
 				</div>
 			{:else}
-				<div class="flex items-center gap-x-2 px-2">
+				<div class="flex items-center gap-x-2">
 					<span class="w-1.5 h-1.5 rounded-full bg-[var(--fg-error)] shrink-0"></span>
-					<span class="text-xs text-[var(--fg-subtle)]">No AI connector</span>
+					<span class="text-xs text-[var(--fg-subtle)]">No connector</span>
 				</div>
 			{/if}
 		</div>

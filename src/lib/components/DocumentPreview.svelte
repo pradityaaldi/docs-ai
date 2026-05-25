@@ -1,6 +1,69 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
 	import { saveDocument, exportDocx, exportPdf } from '$lib/actions';
+	import CodeEditor from '$lib/components/ui/CodeEditor.svelte';
+	import prettier from 'prettier/standalone';
+	import * as parserBabel from 'prettier/plugins/babel';
+	import * as parserEstree from 'prettier/plugins/estree';
+
+	let formatting = $state(false);
+	let formatError = $state<string | null>(null);
+	let editorFocused = $state(false);
+	let lastFormattedSig = $state('');
+	let autoFormatTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function runPrettier(src: string): Promise<string> {
+		return (await prettier.format(src, {
+			parser: 'json',
+			plugins: [parserBabel, parserEstree],
+			tabWidth: 2,
+			printWidth: 100
+		})).trimEnd();
+	}
+
+	async function formatCode(opts: { silent?: boolean; persist?: boolean } = {}) {
+		const doc = app.currentDoc;
+		if (!doc) return;
+		const src = doc.content || '';
+		if (!src.trim()) return;
+		formatting = true;
+		if (!opts.silent) formatError = null;
+		try {
+			const formatted = await runPrettier(src);
+			if (formatted !== src) {
+				doc.content = formatted;
+				if (opts.persist !== false) await saveDocument();
+			}
+			lastFormattedSig = `${doc.id}:${formatted.length}`;
+		} catch (e: any) {
+			if (!opts.silent) formatError = e?.message ?? String(e);
+		} finally {
+			formatting = false;
+		}
+	}
+
+	function scheduleAutoFormat(delay = 120) {
+		if (autoFormatTimer) clearTimeout(autoFormatTimer);
+		autoFormatTimer = setTimeout(() => {
+			autoFormatTimer = null;
+			const doc = app.currentDoc;
+			if (!doc) return;
+			if (editorFocused) return;
+			if (app.isGenerating) return;
+			const sig = `${doc.id}:${(doc.content || '').length}`;
+			if (sig === lastFormattedSig) return;
+			formatCode({ silent: true, persist: false });
+		}, delay);
+	}
+
+	$effect(() => {
+		const _id = app.currentDoc?.id;
+		const _len = app.currentDoc?.content?.length ?? 0;
+		const _gen = app.isGenerating;
+		const _tab = app.previewTab;
+		void _id; void _len; void _gen; void _tab;
+		scheduleAutoFormat();
+	});
 
 	const PAGE_W = 816;
 	const PAGE_H = 1056;
@@ -227,6 +290,16 @@
 					<button onclick={() => app.zoom = Math.min(3, (app.zoom === -1 ? fitZoom : app.zoom) + 0.1)} class="px-1 py-0.5 text-xs text-[var(--fg-muted)] hover:text-[var(--fg-base)] rounded transition-colors cursor-pointer" title="Zoom in">+</button>
 					<button onclick={() => app.zoom = -1} class="px-1 py-0.5 text-xs rounded transition-colors cursor-pointer {app.zoom === -1 ? 'text-[var(--fg-interactive)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-base)]'}" title="Fit to width">Fit</button>
 				</div>
+			{:else}
+				<button
+					onclick={() => formatCode()}
+					disabled={!app.currentDoc || formatting}
+					title="Format JSON with Prettier"
+					class="px-2 py-1 text-xs bg-[var(--button-neutral)] hover:bg-[var(--button-neutral-hover)] disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--border-base)] rounded-md transition-colors cursor-pointer text-[var(--fg-base)] flex items-center gap-1"
+				>
+					<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
+					{formatting ? 'Formatting…' : 'Format'}
+				</button>
 			{/if}
 
 			<div class="w-px h-5 bg-[var(--border-base)] mx-1"></div>
@@ -300,21 +373,31 @@
 			<div class="h-full flex flex-col bg-[var(--bg-base)]">
 				<div class="flex-1 overflow-hidden">
 					{#if app.currentDoc}
-						<textarea
+						<CodeEditor
 							bind:value={app.currentDoc.content}
-							onblur={saveDocument}
-							class="w-full h-full bg-[var(--bg-base)] text-[var(--fg-base)] p-4 font-mono text-sm resize-none outline-none border-none leading-relaxed"
+							onFocus={() => { editorFocused = true; }}
+							onBlur={async () => {
+								editorFocused = false;
+								await formatCode({ silent: true, persist: true });
+								await saveDocument();
+							}}
 							placeholder={'{"meta":{"font":"Arial"},"content":[...]}'}
-						></textarea>
+						/>
 					{:else}
 						<div class="flex items-center justify-center h-full">
 							<p class="text-sm text-[var(--fg-muted)]">Select a document to view code</p>
 						</div>
 					{/if}
 				</div>
-				<div class="px-4 py-2 bg-[var(--bg-subtle)] border-t border-[var(--border-base)] flex justify-between items-center">
-					<span class="text-xs text-[var(--fg-muted)]">Docx JSON &mdash; auto-saves on blur</span>
-					<span class="text-xs text-[var(--fg-muted)]">{app.currentDoc?.content?.length ?? 0} chars</span>
+				<div class="px-4 py-2 bg-[var(--bg-subtle)] border-t border-[var(--border-base)] flex justify-between items-center gap-3">
+					<span class="text-xs text-[var(--fg-muted)] truncate">
+						{#if formatError}
+							<span class="text-red-400">Format error: {formatError}</span>
+						{:else}
+							Docx JSON &middot; auto-formatted with Prettier &middot; saves on blur{formatting ? ' · formatting…' : ''}
+						{/if}
+					</span>
+					<span class="text-xs text-[var(--fg-muted)] shrink-0 tabular-nums">{app.currentDoc?.content?.length ?? 0} chars</span>
 				</div>
 			</div>
 		{/if}

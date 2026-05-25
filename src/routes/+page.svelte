@@ -53,23 +53,33 @@
 		const braceIdx = cleaned.indexOf('{');
 		if (braceIdx > 0) cleaned = cleaned.slice(braceIdx);
 		try {
-			const doc = JSON.parse(content);
+			const doc = JSON.parse(cleaned);
 			if (!doc || !Array.isArray(doc.content)) return '';
-			const pieces: string[] = [];
+
+			const meta = doc.meta || {};
+			const font = meta.font || 'Arial';
+			const fs = meta.fontSize || 22;
+			const bodySize = Math.round(fs / 2 * 100) / 100;
+			const headingSizes: Record<number, number> = { 1: 1.6, 2: 1.3, 3: 1.15, 4: 1, 5: 0.9 };
+			const headingColors: Record<number, string> = { 1: '#1e293b', 2: '#1e293b', 3: '#334155', 4: '#475569', 5: '#64748b' };
+
+			const pieces: string[] = [`<div style="font-family:${font},sans-serif;font-size:${bodySize}pt;line-height:1.5;color:#1e293b">`];
 			for (const el of doc.content) {
 				switch (el.type) {
 					case 'heading': {
-						const h = `h${Math.min(el.level || 1, 6)}`;
-						const a = el.alignment === 'center' ? ' style="text-align:center"' : el.alignment === 'right' ? ' style="text-align:right"' : '';
+						const lvl = Math.min(el.level || 1, 5);
+						const sz = Math.round(bodySize * headingSizes[lvl] * 10) / 10;
+						const clr = headingColors[lvl] || '#1e293b';
+						const a = el.alignment === 'center' ? 'text-align:center;' : el.alignment === 'right' ? 'text-align:right;' : '';
 						const t = (el.text || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>').replace(/`(.+?)`/g, '<code>$1</code>').replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#3b82f6">$1</a>');
-						pieces.push(`<${h}${a}>${t}</${h}>`);
+						pieces.push(`<h${lvl} style="font-size:${sz}pt;font-weight:700;color:${clr};margin:${lvl===1?'24px':'16px'} 0 8px 0;${a}">${t}</h${lvl}>`);
 						break;
 					}
 					case 'paragraph': {
-						const a = el.alignment === 'center' ? ' style="text-align:center"' : el.alignment === 'right' ? ' style="text-align:right"' : '';
+						const a = el.alignment === 'center' ? 'text-align:center;' : el.alignment === 'right' ? 'text-align:right;' : '';
 						let html = '';
 						if (el.runs && Array.isArray(el.runs)) {
-							html = el.runs.map((r: any) => {
+							html = (el.runs as any[]).map((r: any) => {
 								let s = escapeHtml(r.text || '');
 								if (r.bold) s = `<strong>${s}</strong>`;
 								if (r.italic) s = `<em>${s}</em>`;
@@ -80,20 +90,20 @@
 								return s;
 							}).join('');
 						} else {
-							html = (el.text || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>').replace(/`(.+?)`/g, '<code>$1</code>').replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#3b82f6">$1</a>');
+							html = (el.text || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>').replace(/`(.+?)`/g, `<code style="font-family:'Courier New',monospace;font-size:${bodySize-0.5}pt;color:#dc2626">$1</code>`).replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#3b82f6">$1</a>');
 						}
-						pieces.push(`<p${a}>${html}</p>`);
+						pieces.push(`<p style="margin:6px 0;${a}">${html}</p>`);
 						break;
 					}
 					case 'bullet':
-						pieces.push('<ul>' + (el.items || []).map((i: string) => `<li>${escapeHtml(i)}</li>`).join('') + '</ul>');
+						pieces.push('<ul style="margin:8px 0;padding-left:24px">' + (el.items || []).map((i: string) => `<li style="margin:2px 0">${escapeHtml(i)}</li>`).join('') + '</ul>');
 						break;
 					case 'numbered':
-						pieces.push('<ol>' + (el.items || []).map((i: string) => `<li>${escapeHtml(i)}</li>`).join('') + '</ol>');
+						pieces.push('<ol style="margin:8px 0;padding-left:24px">' + (el.items || []).map((i: string) => `<li style="margin:2px 0">${escapeHtml(i)}</li>`).join('') + '</ol>');
 						break;
 					case 'table': {
-						let t = '<table style="border-collapse:collapse;width:100%;margin:12px 0">';
-						t += '<thead><tr>' + (el.headers || []).map((h: string) => `<th style="border:1px solid #d1d5db;padding:8px;background:#f3f4f6;text-align:left">${escapeHtml(h)}</th>`).join('') + '</tr></thead>';
+						let t = `<table style="border-collapse:collapse;width:100%;margin:12px 0;font-size:${Math.round((bodySize-1)*10)/10}pt">`;
+						t += '<thead><tr>' + (el.headers || []).map((h: string) => `<th style="border:1px solid #d1d5db;padding:8px;background:#f3f4f6;font-weight:700;text-align:left;color:#1e293b">${escapeHtml(h)}</th>`).join('') + '</tr></thead>';
 						t += '<tbody>' + (el.rows || []).map((row: string[]) => '<tr>' + row.map((c, i) => `<td style="border:1px solid #d1d5db;padding:6px;text-align:${(el.alignments || [])[i] || 'left'}">${escapeHtml(c || '')}</td>`).join('') + '</tr>').join('') + '</tbody>';
 						t += '</table>';
 						pieces.push(t);
@@ -103,19 +113,20 @@
 						pieces.push('<hr style="border:none;border-top:1px solid #d1d5db;margin:16px 0">');
 						break;
 					case 'code':
-						pieces.push(`<pre style="background:#f3f4f6;padding:12px;border-radius:4px;overflow-x:auto"><code style="font-family:monospace">${escapeHtml(el.text || '')}</code></pre>`);
+						pieces.push(`<pre style="background:#f3f4f6;padding:12px;border-radius:4px;overflow-x:auto;font-family:'Courier New',monospace;font-size:${bodySize-0.5}pt;color:#374151;margin:8px 0">${escapeHtml(el.text || '')}</pre>`);
 						break;
 					case 'quote':
-						pieces.push(`<blockquote style="border-left:4px solid #3b82f6;margin:12px 0;padding:8px 16px;background:#f8fafc;color:#475569">${escapeHtml(el.text || '')}</blockquote>`);
+						pieces.push(`<blockquote style="border-left:4px solid #3b82f6;margin:12px 0;padding:8px 16px;background:#f8fafc;color:#475569;font-style:italic">${escapeHtml(el.text || '')}</blockquote>`);
 						break;
 					case 'pageBreak':
 						pieces.push('<hr style="border-top:2px dashed #cbd5e1;margin:24px 0">');
 						break;
 					case 'toc':
-						pieces.push(`<h2 style="text-align:center;color:#6b7280;margin:24px 0">${escapeHtml(el.label || 'Table of Contents')}</h2>`);
+						pieces.push(`<h2 style="text-align:center;color:#6b7280;font-size:${Math.round(bodySize*1.3*10)/10}pt;margin:24px 0">${escapeHtml(el.label || 'Table of Contents')}</h2>`);
 						break;
 				}
 			}
+			pieces.push('</div>');
 			return pieces.join('\n');
 		} catch {
 			return '';

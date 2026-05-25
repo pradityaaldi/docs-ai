@@ -1,0 +1,451 @@
+import {
+	Document,
+	Packer,
+	Paragraph,
+	TextRun,
+	HeadingLevel,
+	AlignmentType,
+	BorderStyle,
+	Table,
+	TableRow,
+	TableCell,
+	WidthType,
+	ExternalHyperlink,
+	ImageRun,
+	PageBreak
+} from 'docx';
+
+interface DocxRun {
+	text: string;
+	bold?: boolean;
+	italic?: boolean;
+	underline?: boolean;
+	strike?: boolean;
+	color?: string;
+	size?: number;
+	font?: string;
+	link?: string;
+}
+
+interface DocxElement {
+	type: 'heading';
+	level: 1 | 2 | 3 | 4 | 5;
+	text?: string;
+	runs?: DocxRun[];
+	alignment?: 'left' | 'center' | 'right';
+}
+
+type DocxContent = 
+	| { type: 'heading'; level: 1 | 2 | 3 | 4 | 5; text?: string; runs?: DocxRun[]; alignment?: 'left' | 'center' | 'right' }
+	| { type: 'paragraph'; text?: string; runs?: DocxRun[]; alignment?: 'left' | 'center' | 'right'; spacing?: number; spacingAfter?: number }
+	| { type: 'bullet'; items: string[] }
+	| { type: 'numbered'; items: string[] }
+	| { type: 'table'; headers: string[]; rows: string[][]; alignments?: ('left' | 'center' | 'right')[] }
+	| { type: 'hr' }
+	| { type: 'code'; text: string; language?: string }
+	| { type: 'quote'; text: string }
+	| { type: 'image'; src: string; width?: number; height?: number }
+	| { type: 'pageBreak' }
+	| { type: 'toc'; label?: string };
+
+interface DocxMeta {
+	pageSize?: 'A4' | 'Letter' | 'Legal';
+	orientation?: 'portrait' | 'landscape';
+	marginTop?: number;
+	marginRight?: number;
+	marginBottom?: number;
+	marginLeft?: number;
+	font?: string;
+	fontSize?: number;
+	lineSpacing?: number;
+}
+
+interface DocxDocument {
+	meta?: DocxMeta;
+	content: DocxContent[];
+}
+
+const DEFAULT_META: Required<DocxMeta> = {
+	pageSize: 'A4',
+	orientation: 'portrait',
+	marginTop: 1440,
+	marginRight: 1440,
+	marginBottom: 1440,
+	marginLeft: 1440,
+	font: 'Arial',
+	fontSize: 22,
+	lineSpacing: 276
+};
+
+const PAGE_SIZES: Record<string, { width: number; height: number }> = {
+	A4: { width: 11906, height: 16838 },
+	Letter: { width: 12240, height: 15840 },
+	Legal: { width: 12240, height: 20160 }
+};
+
+function alignType(a?: string): AlignmentType {
+	if (a === 'center') return AlignmentType.CENTER;
+	if (a === 'right') return AlignmentType.RIGHT;
+	return AlignmentType.LEFT;
+}
+
+function headingLevel(level: number): HeadingLevel {
+	switch (level) {
+		case 2: return HeadingLevel.HEADING_2;
+		case 3: return HeadingLevel.HEADING_3;
+		case 4: return HeadingLevel.HEADING_4;
+		case 5: return HeadingLevel.HEADING_5;
+		default: return HeadingLevel.HEADING_1;
+	}
+}
+
+function textToRuns(text: string, font: string, fontSize: number): DocxRun[] {
+	const runs: DocxRun[] = [];
+	const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\)|([^*`\[]+))/g;
+	let match;
+	while ((match = regex.exec(text)) !== null) {
+		if (match[2]) runs.push({ text: match[2], bold: true });
+		else if (match[3]) runs.push({ text: match[3], italic: true });
+		else if (match[4]) runs.push({ text: match[4], font: 'Courier New', size: fontSize - 2 });
+		else if (match[5] && match[6]) runs.push({ text: match[5], link: match[6] });
+		else if (match[7]) runs.push({ text: match[7] });
+	}
+	return runs.length > 0 ? runs : [{ text }];
+}
+
+function buildRuns(runs: DocxRun[], font: string, fontSize: number): (TextRun | ExternalHyperlink)[] {
+	return runs.map((r) => {
+		const tr = new TextRun({
+			text: r.text,
+			bold: r.bold ?? false,
+			italics: r.italic ?? false,
+			underline: r.underline ? {} : undefined,
+			strike: r.strike ?? false,
+			color: r.color,
+			size: r.size ?? fontSize,
+			font: r.font ?? font
+		});
+		if (r.link) {
+			return new ExternalHyperlink({
+				children: [new TextRun({ text: r.text, style: 'Hyperlink' })],
+				link: r.link
+			});
+		}
+		return tr;
+	});
+}
+
+function resolveRuns(el: { text?: string; runs?: DocxRun[] }, font: string, fontSize: number): DocxRun[] {
+	if (el.runs) return el.runs;
+	if (el.text) return textToRuns(el.text, font, fontSize);
+	return [{ text: '' }];
+}
+
+export function docxJsonToDocument(json: DocxDocument): Document {
+	const meta = { ...DEFAULT_META, ...json.meta };
+	const { font, fontSize, lineSpacing } = meta;
+
+	const children: (Paragraph | Table)[] = [];
+
+	for (const el of json.content) {
+		switch (el.type) {
+			case 'heading': {
+				const runs = resolveRuns(el, font, fontSize);
+				children.push(
+					new Paragraph({
+						children: buildRuns(runs, font, fontSize),
+						heading: headingLevel(el.level),
+						alignment: alignType(el.alignment),
+						spacing: { before: 240, after: 120 }
+					})
+				);
+				break;
+			}
+			case 'paragraph': {
+				const runs = resolveRuns(el, font, fontSize);
+				children.push(
+					new Paragraph({
+						children: buildRuns(runs, font, fontSize),
+						alignment: alignType(el.alignment),
+						spacing: { before: el.spacing ?? 120, after: el.spacingAfter ?? 120 }
+					})
+				);
+				break;
+			}
+			case 'bullet': {
+				for (const item of el.items) {
+					children.push(
+						new Paragraph({
+							children: [new TextRun({ text: '•  ', font }), ...buildRuns(textToRuns(item, font, fontSize), font, fontSize)],
+							spacing: { before: 40, after: 40 },
+							indent: { left: 360 }
+						})
+					);
+				}
+				break;
+			}
+			case 'numbered': {
+				for (let i = 0; i < el.items.length; i++) {
+					children.push(
+						new Paragraph({
+							children: [new TextRun({ text: `${i + 1}.  `, font }), ...buildRuns(textToRuns(el.items[i], font, fontSize), font, fontSize)],
+							spacing: { before: 40, after: 40 },
+							indent: { left: 360 }
+						})
+					);
+				}
+				break;
+			}
+			case 'table': {
+				const aligns = el.alignments ? el.alignments.map(alignType) : el.headers.map(() => AlignmentType.LEFT);
+				const colCount = el.headers.length;
+				const colWidth = Math.floor(100 / colCount);
+				const cellBorders = {
+					top: { style: BorderStyle.SINGLE as const, size: 1, color: 'd1d5db' },
+					bottom: { style: BorderStyle.SINGLE as const, size: 1, color: 'd1d5db' },
+					left: { style: BorderStyle.SINGLE as const, size: 1, color: 'd1d5db' },
+					right: { style: BorderStyle.SINGLE as const, size: 1, color: 'd1d5db' }
+				};
+
+				const headerRow = new TableRow({
+					children: el.headers.map((h, idx) =>
+						new TableCell({
+							children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, font, size: fontSize - 2 })], alignment: aligns[idx] })],
+							width: { size: colWidth, type: WidthType.PERCENTAGE },
+							shading: { type: 'solid', fill: 'f3f4f6' },
+							borders: cellBorders
+						})
+					)
+				});
+
+				const dataRows = el.rows.map((row) =>
+					new TableRow({
+						children: el.headers.map((_, idx) =>
+							new TableCell({
+								children: [new Paragraph({ children: buildRuns(textToRuns(row[idx] || '', font, fontSize), font, fontSize), alignment: aligns[idx] })],
+								width: { size: colWidth, type: WidthType.PERCENTAGE },
+								borders: cellBorders
+							})
+						)
+					})
+				);
+
+				children.push(
+					new Table({
+						rows: [headerRow, ...dataRows],
+						borders: {
+							top: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' },
+							bottom: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' },
+							left: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' },
+							right: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' },
+							insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' },
+							insideVertical: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' }
+						}
+					})
+				);
+				break;
+			}
+			case 'hr': {
+				children.push(
+					new Paragraph({
+						border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: '999999', space: 1 } },
+						spacing: { before: 240, after: 240 }
+					})
+				);
+				break;
+			}
+			case 'code': {
+				children.push(
+					new Paragraph({
+						children: [new TextRun({ text: el.text, font: 'Courier New', size: fontSize - 2, color: '374151' })],
+						shading: { type: 'solid', fill: 'f3f4f6' },
+						spacing: { before: 120, after: 120 },
+						indent: { left: 120, right: 120 }
+					})
+				);
+				break;
+			}
+			case 'quote': {
+				children.push(
+					new Paragraph({
+						children: buildRuns(textToRuns(el.text, font, fontSize), font, fontSize),
+						border: { left: { style: BorderStyle.SINGLE, size: 12, color: '3b82f6', space: 8 } },
+						indent: { left: 720 },
+						spacing: { before: 120, after: 120 }
+					})
+				);
+				break;
+			}
+			case 'image': {
+				children.push(
+					new Paragraph({
+						children: [new ImageRun({
+							src: el.src,
+							width: el.width ?? 300,
+							height: el.height ?? 200
+						})],
+						alignment: AlignmentType.CENTER
+					})
+				);
+				break;
+			}
+			case 'pageBreak': {
+				children.push(
+					new Paragraph({
+						children: [new PageBreak()]
+					})
+				);
+				break;
+			}
+			case 'toc': {
+				children.push(
+					new Paragraph({
+						text: el.label || 'Table of Contents',
+						heading: HeadingLevel.HEADING_2,
+						spacing: { before: 360, after: 240 }
+					})
+				);
+				break;
+			}
+		}
+	}
+
+	const pageSize = PAGE_SIZES[meta.pageSize] || PAGE_SIZES.A4;
+	const [pageW, pageH] = meta.orientation === 'landscape' ? [pageSize.height, pageSize.width] : [pageSize.width, pageSize.height];
+
+	return new Document({
+		styles: {
+			default: {
+				document: {
+					run: { font, size: fontSize }
+				},
+				heading1: {
+					run: { font, size: 36, bold: true, color: '1e293b' }
+				},
+				heading2: {
+					run: { font, size: 28, bold: true, color: '1e293b' }
+				},
+				heading3: {
+					run: { font, size: 24, bold: true, color: '334155' }
+				}
+			}
+		},
+		sections: [{
+			properties: {
+				page: {
+					size: { width: pageW, height: pageH },
+					margin: {
+						top: meta.marginTop,
+						right: meta.marginRight,
+						bottom: meta.marginBottom,
+						left: meta.marginLeft
+					}
+				}
+			},
+			children
+		}]
+	});
+}
+
+export function parseDocxJson(input: string): DocxDocument | null {
+	try {
+		const parsed = JSON.parse(input);
+		if (!parsed || !Array.isArray(parsed.content)) return null;
+		return parsed as DocxDocument;
+	} catch {
+		return null;
+	}
+}
+
+export function docxJsonToHtml(json: DocxDocument): string {
+	const pieces: string[] = [];
+
+	for (const el of json.content) {
+		switch (el.type) {
+			case 'heading': {
+				const h = `h${Math.min(el.level, 6)}`;
+				const a = el.alignment === 'center' ? ' style="text-align:center"' : el.alignment === 'right' ? ' style="text-align:right"' : '';
+				pieces.push(`<${h}${a}>${escapeHtml(el.text || '')}</${h}>`);
+				break;
+			}
+			case 'paragraph': {
+				const a = el.alignment === 'center' ? ' style="text-align:center"' : el.alignment === 'right' ? ' style="text-align:right"' : '';
+				pieces.push(`<p${a}>${renderRunsHtml(el.text || '', el.runs)}</p>`);
+				break;
+			}
+			case 'bullet': {
+				pieces.push('<ul>' + el.items.map(i => `<li>${escapeHtml(i)}</li>`).join('') + '</ul>');
+				break;
+			}
+			case 'numbered': {
+				pieces.push('<ol>' + el.items.map(i => `<li>${escapeHtml(i)}</li>`).join('') + '</ol>');
+				break;
+			}
+			case 'table': {
+				let t = '<table style="border-collapse:collapse;width:100%">';
+				t += '<thead><tr>' + el.headers.map(h => `<th style="border:1px solid #d1d5db;padding:8px;background:#f3f4f6;text-align:left">${escapeHtml(h)}</th>`).join('') + '</tr></thead>';
+				t += '<tbody>' + el.rows.map(row => '<tr>' + row.map((c, i) => `<td style="border:1px solid #d1d5db;padding:6px;text-align:${el.alignments?.[i] || 'left'}">${escapeHtml(c)}</td>`).join('') + '</tr>').join('') + '</tbody>';
+				t += '</table>';
+				pieces.push(t);
+				break;
+			}
+			case 'hr': {
+				pieces.push('<hr>');
+				break;
+			}
+			case 'code': {
+				pieces.push(`<pre style="background:#f3f4f6;padding:12px;border-radius:4px;font-family:monospace"><code>${escapeHtml(el.text)}</code></pre>`);
+				break;
+			}
+			case 'quote': {
+				pieces.push(`<blockquote style="border-left:4px solid #3b82f6;margin:12px 0;padding:8px 16px;background:#f8fafc">${escapeHtml(el.text)}</blockquote>`);
+				break;
+			}
+			case 'image': {
+				pieces.push(`<div style="text-align:center"><img src="${escapeHtml(el.src)}" style="max-width:100%" width="${el.width || 300}" height="${el.height || 200}" alt="image" /></div>`);
+				break;
+			}
+			case 'pageBreak': {
+				pieces.push('<hr style="border-top:2px dashed #ccc">');
+				break;
+			}
+			case 'toc': {
+				pieces.push(`<h2 style="text-align:center;color:#6b7280">${escapeHtml(el.label || 'Table of Contents')}</h2>`);
+				break;
+			}
+		}
+	}
+
+	return pieces.join('\n');
+}
+
+function escapeHtml(s: string): string {
+	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderRunsHtml(text: string, runs?: DocxRun[]): string {
+	if (runs && runs.length > 0) {
+		return runs.map((r) => {
+			let s = escapeHtml(r.text);
+			if (r.bold) s = `<strong>${s}</strong>`;
+			if (r.italic) s = `<em>${s}</em>`;
+			if (r.link) s = `<a href="${escapeHtml(r.link)}" style="color:#3b82f6">${s}</a>`;
+			if (r.color) s = `<span style="color:${r.color}">${s}</span>`;
+			if (r.underline) s = `<u>${s}</u>`;
+			if (r.strike) s = `<s>${s}</s>`;
+			return s;
+		}).join('');
+	}
+	return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+		.replace(/\*(.+?)\*/g, '<em>$1</em>')
+		.replace(/`(.+?)`/g, '<code>$1</code>')
+		.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#3b82f6">$1</a>');
+}
+
+export async function generateDocxBuffer(docxJson: string): Promise<Buffer> {
+	const doc = parseDocxJson(docxJson);
+	if (!doc) throw new Error('Invalid docx JSON document');
+	const document = docxJsonToDocument(doc);
+	const buffer = await Packer.toBuffer(document);
+	return Buffer.from(buffer);
+}

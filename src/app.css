@@ -1,40 +1,86 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --border: #475569;
-  --success: #22c55e;
-  --danger: #ef4444;
+  --bg-base: #212124;
+  --bg-subtle: #18181b;
+  --bg-component: #27272a;
+  --bg-component-hover: rgba(255, 255, 255, 0.1);
+  --bg-base-hover: #27272a;
+  --bg-base-pressed: #3f3f46;
+  --bg-field: rgba(255, 255, 255, 0.04);
+  --bg-field-hover: rgba(255, 255, 255, 0.08);
+  --bg-overlay: rgba(24, 24, 27, 0.72);
+  --bg-switch-off: #3f3f46;
+
+  --border-base: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-interactive: rgba(96, 165, 250, 1);
+  --border-error: rgba(251, 113, 133, 1);
+  --border-danger: rgba(190, 18, 60, 1);
+  --border-transparent: rgba(255, 255, 255, 0);
+
+  --fg-base: #f4f4f5;
+  --fg-subtle: #a1a1aa;
+  --fg-muted: #71717a;
+  --fg-disabled: #52525b;
+  --fg-interactive: rgba(96, 165, 250, 1);
+  --fg-interactive-hover: rgba(147, 197, 253, 1);
+  --fg-error: rgba(251, 113, 133, 1);
+  --fg-on-color: #ffffff;
+  --fg-on-inverted: #18181b;
+
+  --button-neutral: rgba(255, 255, 255, 0.04);
+  --button-neutral-hover: rgba(255, 255, 255, 0.08);
+  --button-neutral-pressed: rgba(255, 255, 255, 0.12);
+  --button-danger: rgba(159, 18, 57, 1);
+  --button-danger-hover: rgba(190, 18, 60, 1);
+  --button-inverted: #52525b;
+  --button-inverted-hover: #71717a;
+
+  --tag-neutral-bg: rgba(255, 255, 255, 0.08);
+  --tag-neutral-border: rgba(255, 255, 255, 0.06);
+  --tag-neutral-text: #d4d4d8;
+  --tag-neutral-icon: #71717a;
+  --tag-green-bg: rgba(2, 44, 34, 1);
+  --tag-green-border: rgba(6, 78, 59, 1);
+  --tag-green-text: rgba(52, 211, 153, 1);
+  --tag-red-bg: rgba(76, 5, 25, 1);
+  --tag-red-border: rgba(136, 19, 55, 1);
+  --tag-red-text: rgba(253, 164, 175, 1);
+  --tag-blue-bg: rgba(23, 37, 84, 1);
+  --tag-blue-border: rgba(30, 58, 138, 1);
+  --tag-blue-text: rgba(147, 197, 253, 1);
+  --tag-orange-bg: rgba(67, 20, 7, 1);
+  --tag-orange-border: rgba(124, 45, 18, 1);
+  --tag-orange-text: rgba(253, 186, 116, 1);
+  --tag-purple-bg: rgba(46, 16, 101, 1);
+  --tag-purple-border: rgba(91, 33, 182, 1);
+  --tag-purple-text: rgba(196, 181, 253, 1);
 }
 
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
+  background-color: var(--bg-subtle);
+  color: var(--fg-base);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border);
+  background: rgba(255, 255, 255, 0.2);
 }
 
-/* Markdown content styling in preview (white background) */
 .markdown-content h1 { font-size: 2em; font-weight: 700; margin: 0.67em 0; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.3em; color: #111827; }
 .markdown-content h2 { font-size: 1.5em; font-weight: 600; margin: 0.83em 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; color: #1f2937; }
 .markdown-content h3 { font-size: 1.17em; font-weight: 600; margin: 1em 0; color: #374151; }

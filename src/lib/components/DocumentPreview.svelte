@@ -1,0 +1,194 @@
+<script lang="ts">
+	import { app } from '$lib/stores/app.svelte';
+	import { saveDocument, exportDocx, exportPdf } from '$lib/actions';
+
+	let fitZoom = $derived(app.previewContainer ? (app.previewContainer.clientWidth - 64) / 816 : 1);
+	let effectiveZoom = $derived(app.zoom === -1 ? fitZoom : app.zoom);
+
+	function escapeHtml(s: string): string {
+		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	}
+
+	function renderPreview(content: string): string {
+		let cleaned = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+		const braceIdx = cleaned.indexOf('{');
+		if (braceIdx > 0) cleaned = cleaned.slice(braceIdx);
+		try {
+			const doc = JSON.parse(cleaned);
+			if (!doc || !Array.isArray(doc.content)) return '';
+			const meta = doc.meta || {};
+			const font = meta.font || 'Arial';
+			const fs = meta.fontSize || 22;
+			const bodySize = Math.round(fs / 2 * 100) / 100;
+			const headingSizes: Record<number, number> = { 1: 1.6, 2: 1.3, 3: 1.15, 4: 1, 5: 0.9 };
+			const headingColors: Record<number, string> = { 1: '#1e293b', 2: '#1e293b', 3: '#334155', 4: '#475569', 5: '#64748b' };
+
+			const pieces: string[] = [`<div style="font-family:${font},sans-serif;font-size:${bodySize}pt;line-height:1.5;color:#1e293b">`];
+			for (const el of doc.content) {
+				switch (el.type) {
+					case 'heading': {
+						const lvl = Math.min(el.level || 1, 5);
+						const sz = Math.round(bodySize * headingSizes[lvl] * 10) / 10;
+						const clr = headingColors[lvl] || '#1e293b';
+						const a = el.alignment === 'center' ? 'text-align:center;' : el.alignment === 'right' ? 'text-align:right;' : '';
+						const t = (el.text || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>').replace(/`(.+?)`/g, '<code>$1</code>').replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#3b82f6">$1</a>');
+						pieces.push(`<h${lvl} style="font-size:${sz}pt;font-weight:700;color:${clr};margin:${lvl===1?'24px':'16px'} 0 8px 0;${a}">${t}</h${lvl}>`);
+						break;
+					}
+					case 'paragraph': {
+						const a = el.alignment === 'center' ? 'text-align:center;' : el.alignment === 'right' ? 'text-align:right;' : '';
+						let html = '';
+						if (el.runs && Array.isArray(el.runs)) {
+							html = (el.runs as any[]).map((r: any) => {
+								let s = escapeHtml(r.text || '');
+								if (r.bold) s = `<strong>${s}</strong>`;
+								if (r.italic) s = `<em>${s}</em>`;
+								if (r.underline) s = `<u>${s}</u>`;
+								if (r.strike) s = `<s>${s}</s>`;
+								if (r.link) s = `<a href="${escapeHtml(r.link)}" style="color:#3b82f6">${s}</a>`;
+								if (r.color) s = `<span style="color:#${r.color}">${s}</span>`;
+								return s;
+							}).join('');
+						} else {
+							html = (el.text || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>').replace(/`(.+?)`/g, `<code style="font-family:'Courier New',monospace;font-size:${bodySize-0.5}pt;color:#dc2626">$1</code>`).replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#3b82f6">$1</a>');
+						}
+						pieces.push(`<p style="margin:6px 0;${a}">${html}</p>`);
+						break;
+					}
+					case 'bullet':
+						pieces.push('<ul style="margin:8px 0;padding-left:24px">' + (el.items || []).map((i: string) => `<li style="margin:2px 0">${escapeHtml(i)}</li>`).join('') + '</ul>');
+						break;
+					case 'numbered':
+						pieces.push('<ol style="margin:8px 0;padding-left:24px">' + (el.items || []).map((i: string) => `<li style="margin:2px 0">${escapeHtml(i)}</li>`).join('') + '</ol>');
+						break;
+					case 'table': {
+						let t = `<table style="border-collapse:collapse;width:100%;margin:12px 0;font-size:${Math.round((bodySize-1)*10)/10}pt">`;
+						t += '<thead><tr>' + (el.headers || []).map((h: string) => `<th style="border:1px solid #d1d5db;padding:8px;background:#f3f4f6;font-weight:700;text-align:left;color:#1e293b">${escapeHtml(h)}</th>`).join('') + '</tr></thead>';
+						t += '<tbody>' + (el.rows || []).map((row: string[]) => '<tr>' + row.map((c, i) => `<td style="border:1px solid #d1d5db;padding:6px;text-align:${(el.alignments || [])[i] || 'left'}">${escapeHtml(c || '')}</td>`).join('') + '</tr>').join('') + '</tbody>';
+						t += '</table>';
+						pieces.push(t);
+						break;
+					}
+					case 'hr':
+						pieces.push('<hr style="border:none;border-top:1px solid #d1d5db;margin:16px 0">');
+						break;
+					case 'code':
+						pieces.push(`<pre style="background:#f3f4f6;padding:12px;border-radius:4px;overflow-x:auto;font-family:'Courier New',monospace;font-size:${bodySize-0.5}pt;color:#374151;margin:8px 0">${escapeHtml(el.text || '')}</pre>`);
+						break;
+					case 'quote':
+						pieces.push(`<blockquote style="border-left:4px solid #3b82f6;margin:12px 0;padding:8px 16px;background:#f8fafc;color:#475569;font-style:italic">${escapeHtml(el.text || '')}</blockquote>`);
+						break;
+					case 'pageBreak':
+						pieces.push('<hr style="border-top:2px dashed #cbd5e1;margin:24px 0">');
+						break;
+					case 'toc':
+						pieces.push(`<h2 style="text-align:center;color:#6b7280;font-size:${Math.round(bodySize*1.3*10)/10}pt;margin:24px 0">${escapeHtml(el.label || 'Table of Contents')}</h2>`);
+						break;
+				}
+			}
+			pieces.push('</div>');
+			return pieces.join('\n');
+		} catch {
+			return '';
+		}
+	}
+</script>
+
+<div class="w-1/2 flex flex-col">
+	<div class="h-[45px] px-4 border-b border-[var(--border-base)] flex items-center justify-between gap-3 shrink-0">
+		<div class="flex-1 min-w-0">
+			{#if app.currentDoc}
+				<input
+					type="text"
+					bind:value={app.currentDoc.title}
+					onblur={saveDocument}
+					class="w-full bg-transparent text-sm font-medium text-[var(--fg-base)] placeholder-[var(--fg-disabled)] outline-none transition-colors px-0.5 py-0.5"
+				/>
+			{:else}
+				<span class="text-sm text-[var(--fg-muted)]">No document selected</span>
+			{/if}
+		</div>
+
+		<div class="flex items-center gap-1.5 shrink-0">
+			<div class="flex bg-[var(--bg-component)] rounded-md p-0.5">
+				<button
+					onclick={() => app.previewTab = 'preview'}
+					class="px-2 py-1 text-xs rounded font-medium transition-colors cursor-pointer {app.previewTab === 'preview' ? 'bg-[var(--fg-interactive)] text-[var(--fg-on-color)]' : 'text-[var(--fg-subtle)] hover:text-[var(--fg-base)]'}"
+				>Preview</button>
+				<button
+					onclick={() => app.previewTab = 'code'}
+					class="px-2 py-1 text-xs rounded font-medium transition-colors cursor-pointer {app.previewTab === 'code' ? 'bg-[var(--fg-interactive)] text-[var(--fg-on-color)]' : 'text-[var(--fg-subtle)] hover:text-[var(--fg-base)]'}"
+				>Code</button>
+			</div>
+
+			{#if app.previewTab === 'preview'}
+				<div class="flex items-center gap-0.5 bg-[var(--bg-component)] rounded-md p-0.5">
+					<button onclick={() => app.zoom = Math.max(0.25, (app.zoom === -1 ? fitZoom : app.zoom) - 0.1)} class="px-1 py-0.5 text-xs text-[var(--fg-muted)] hover:text-[var(--fg-base)] rounded transition-colors cursor-pointer" title="Zoom out">&minus;</button>
+					<span class="text-[11px] text-[var(--fg-subtle)] min-w-[36px] text-center tabular-nums">{Math.round(effectiveZoom * 100)}%</span>
+					<button onclick={() => app.zoom = Math.min(3, (app.zoom === -1 ? fitZoom : app.zoom) + 0.1)} class="px-1 py-0.5 text-xs text-[var(--fg-muted)] hover:text-[var(--fg-base)] rounded transition-colors cursor-pointer" title="Zoom in">+</button>
+					<button onclick={() => app.zoom = -1} class="px-1 py-0.5 text-xs rounded transition-colors cursor-pointer {app.zoom === -1 ? 'text-[var(--fg-interactive)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-base)]'}" title="Fit to width">Fit</button>
+				</div>
+			{/if}
+
+			<div class="w-px h-5 bg-[var(--border-base)] mx-1"></div>
+
+			<button onclick={exportDocx} disabled={!app.currentDoc} class="px-2 py-1 text-xs bg-[var(--button-neutral)] hover:bg-[var(--button-neutral-hover)] disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--border-base)] rounded-md transition-colors cursor-pointer text-[var(--fg-base)]">
+				DOCX
+			</button>
+			<button onclick={exportPdf} disabled={!app.currentDoc} class="px-2 py-1 text-xs bg-[var(--button-neutral)] hover:bg-[var(--button-neutral-hover)] disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--border-base)] rounded-md transition-colors cursor-pointer text-[var(--fg-base)]">
+				PDF
+			</button>
+		</div>
+	</div>
+
+	<div class="flex-1 overflow-hidden">
+		{#if app.previewTab === 'preview'}
+			<div class="h-full overflow-auto bg-[#e4e4e7]" bind:this={app.previewContainer}>
+				<div class="flex justify-center py-10">
+					<div
+						style="width: {Math.round(816 * effectiveZoom)}px; height: {Math.round(1056 * effectiveZoom)}px; transition: width 0.1s, height 0.1s"
+					>
+						<div
+							class="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12)] text-gray-900"
+							style="transform: scale({effectiveZoom}); transform-origin: top left; width: 816px; min-height: 1056px"
+							onwheel={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); app.zoom = Math.max(0.25, Math.min(3, (app.zoom === -1 ? fitZoom : app.zoom) + (e.deltaY > 0 ? -0.05 : 0.05))); } }}
+						>
+							<div class="p-16">
+								{#if app.currentDoc?.content}
+									<div class="prose prose-sm max-w-none">{@html renderPreview(app.currentDoc.content)}</div>
+								{:else}
+									<div class="flex flex-col items-center justify-center h-64 text-center">
+										<svg width="32" height="32" viewBox="0 0 40 40" fill="none" class="mb-3 opacity-15"><path d="M8 6h16l8 8v20a2 2 0 01-2 2H10a2 2 0 01-2-2V8a2 2 0 012-2z" stroke="#6b7280" stroke-width="2"/></svg>
+										<p class="text-gray-400 text-sm">Document preview will appear here</p>
+										<p class="text-gray-400 text-xs mt-1">Chat with AI to generate content</p>
+									</div>
+								{/if}
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		{:else}
+			<div class="h-full flex flex-col bg-[var(--bg-base)]">
+				<div class="flex-1 overflow-hidden">
+					{#if app.currentDoc}
+						<textarea
+							bind:value={app.currentDoc.content}
+							onblur={saveDocument}
+							class="w-full h-full bg-[var(--bg-base)] text-[var(--fg-base)] p-4 font-mono text-sm resize-none outline-none border-none leading-relaxed"
+							placeholder={'{"meta":{"font":"Arial"},"content":[...]}'}
+						></textarea>
+					{:else}
+						<div class="flex items-center justify-center h-full">
+							<p class="text-sm text-[var(--fg-muted)]">Select a document to view code</p>
+						</div>
+					{/if}
+				</div>
+				<div class="px-4 py-2 bg-[var(--bg-subtle)] border-t border-[var(--border-base)] flex justify-between items-center">
+					<span class="text-xs text-[var(--fg-muted)]">Docx JSON &mdash; auto-saves on blur</span>
+					<span class="text-xs text-[var(--fg-muted)]">{app.currentDoc?.content?.length ?? 0} chars</span>
+				</div>
+			</div>
+		{/if}
+	</div>
+</div>

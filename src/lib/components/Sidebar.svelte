@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { app, type TreeNode, type DocEntry } from '$lib/stores/app.svelte';
-	import { createProject, deleteProject, enterProject, exitToProjects, createDocument, createFolder, selectDocument, deleteDocument } from '$lib/actions';
+	import { createProject, deleteProject, enterProject, exitToProjects, createDocument, createFolder, selectDocument, deleteDocument, openRootChat } from '$lib/actions';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import TreeItem from '$lib/components/ui/TreeItem.svelte';
 
@@ -115,6 +115,13 @@
 						>
 							<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h4.5l1.5 1.5H14v7H2V4z" fill="currentColor" opacity="0.3"/><path d="M2 4h4.5l1.5 1.5H14v7H2V4z" stroke="currentColor" stroke-width="1.2"/><path d="M9 7v4M7 9h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
 							New Folder
+						</button>
+						<button
+							onclick={openRootChat}
+							class="w-full flex items-center gap-x-2 px-3 py-1.5 rounded-md text-sm transition-fg cursor-pointer outline-none {app.currentDoc?.id === app.globalConversation?.id ? 'bg-[var(--bg-base)] text-[var(--fg-base)] shadow-[0_1px_2px_rgba(0,0,0,0.2)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
+						>
+							<svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="shrink-0"><path d="M2 3h12v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3z" stroke="currentColor" stroke-width="1.2"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+							Root Chat
 						</button>
 					</div>
 

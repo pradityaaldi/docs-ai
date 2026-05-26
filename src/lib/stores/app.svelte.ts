@@ -69,6 +69,13 @@ export type ChatPhase =
 	| 'error'
 	| 'aborted';
 
+export interface ToolResultEntry {
+	title: string;
+	documentId: string;
+	success: boolean;
+	error?: string;
+}
+
 export interface ChatStatus {
 	phase: ChatPhase;
 	message: string;
@@ -82,6 +89,10 @@ export interface ChatStatus {
 	bytesReceived: number;
 	lastChunkAt: number | null;
 	thinking: boolean;
+	toolPhase: 'tools' | 'chat';
+	toolCallsCompleted: number;
+	toolCallCurrent: string;
+	toolResults: ToolResultEntry[];
 }
 
 export const app = $state({
@@ -91,6 +102,7 @@ export const app = $state({
 	currentProject: null as Project | null,
 	projectTree: [] as TreeNode[],
 	rootDocuments: [] as DocEntry[],
+	globalConversation: null as Document | null,
 	activeConnector: null as Connector | null,
 	currentDoc: null as Document | null,
 	messages: [] as Message[],
@@ -115,6 +127,10 @@ export const app = $state({
 		bytesReceived: 0,
 		lastChunkAt: null,
 		thinking: false,
+		toolPhase: 'chat' as 'tools' | 'chat',
+		toolCallsCompleted: 0,
+		toolCallCurrent: '',
+		toolResults: [] as ToolResultEntry[],
 	} as ChatStatus,
 	showSettings: false,
 	previewTab: 'preview' as 'preview' | 'code',
@@ -136,6 +152,10 @@ export function setPhase(phase: ChatPhase, message: string, errorMsg = '') {
 		app.status.bytesReceived = 0;
 		app.status.lastChunkAt = null;
 		app.status.thinking = false;
+		app.status.toolPhase = 'chat';
+		app.status.toolCallsCompleted = 0;
+		app.status.toolCallCurrent = '';
+		app.status.toolResults = [];
 	} else if (phase === 'error' || phase === 'aborted') {
 		app.status.finishedAt = Date.now();
 	} else {

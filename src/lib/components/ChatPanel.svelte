@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
-	import { sendMessage, stopGeneration, clearMessages } from '$lib/actions';
+	import { sendMessage, sendProjectMessage, stopGeneration, clearMessages } from '$lib/actions';
 
 	let scrollContainer = $state<HTMLDivElement>();
 	let autoScroll = $state(true);
@@ -72,8 +72,12 @@
 			} else if (val === '/stop') {
 				stopGeneration();
 				app.chatInput = '';
-			} else {
+			} else if (app.currentDoc?.id === app.globalConversation?.id) {
+				sendProjectMessage();
+			} else if (app.currentDoc) {
 				sendMessage();
+			} else if (app.currentProject) {
+				sendProjectMessage();
 			}
 		}
 	}
@@ -165,13 +169,27 @@
 
 	<div class="flex-1 relative">
 		<div class="absolute inset-0 overflow-y-auto px-4 py-4 space-y-5" bind:this={scrollContainer} onscroll={handleScroll}>
-			{#if app.messages.length === 0 && !isActive}
+			{#if !app.currentProject}
+				<div class="flex flex-col items-center justify-center h-full text-center px-6">
+					<div class="w-12 h-12 rounded-xl bg-[var(--bg-component)] border border-[var(--border-base)] flex items-center justify-center mb-4">
+						<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="var(--fg-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					</div>
+					<p class="text-sm font-medium text-[var(--fg-subtle)]">No project selected</p>
+					<p class="text-xs text-[var(--fg-muted)] mt-1 max-w-[260px] leading-relaxed">Select a project from the sidebar or create a new one to start generating documents.</p>
+					<button
+						onclick={() => app.sidebarView = 'projects'}
+						class="mt-4 px-4 py-2 rounded-lg bg-[var(--fg-interactive)] hover:opacity-90 text-sm font-medium text-[var(--fg-on-color)] cursor-pointer transition-opacity"
+					>
+						Go to Projects
+					</button>
+				</div>
+			{:else if app.messages.length === 0 && !isActive}
 				<div class="flex flex-col items-center justify-center h-full text-center px-6">
 					<div class="w-12 h-12 rounded-xl bg-[var(--bg-component)] border border-[var(--border-base)] flex items-center justify-center mb-4">
 						<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 8v4l3 3" stroke="var(--fg-interactive)" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="var(--fg-interactive)" stroke-width="1.5"/></svg>
 					</div>
 					<p class="text-sm font-medium text-[var(--fg-subtle)]">Start a conversation</p>
-					<p class="text-xs text-[var(--fg-muted)] mt-1 max-w-[280px] leading-relaxed">Chat with AI to generate structured documents. Try asking for a business proposal, report, or letter.</p>
+					<p class="text-xs text-[var(--fg-muted)] mt-1 max-w-[280px] leading-relaxed">Describe what you want to create. The AI can generate multiple documents at once — try asking for "5 documents about vegetables" or "3 reports on fruit".</p>
 					<div class="flex items-center gap-2 mt-4">
 						<kbd class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-component)] border border-[var(--border-base)] text-[var(--fg-muted)]">/clear to reset</kbd>
 						<kbd class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-component)] border border-[var(--border-base)] text-[var(--fg-muted)]">/stop to cancel</kbd>
@@ -252,6 +270,27 @@
 									{/each}
 								</div>
 							{/if}
+
+							{#if app.status.toolResults.length > 0}
+								<div class="mt-2 space-y-1.5">
+									<div class="text-[11px] font-medium text-[var(--fg-subtle)] flex items-center gap-1.5">
+										<svg width="11" height="11" viewBox="0 0 24 24" fill="none" class="shrink-0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6" stroke="var(--fg-interactive)" stroke-width="2" stroke-linejoin="round"/></svg>
+										Created documents
+										{#if app.status.toolPhase === 'tools'}
+											<span class="text-[var(--fg-muted)]">({app.status.toolCallsCompleted} done)</span>
+										{/if}
+									</div>
+									{#each app.status.toolResults as tr}
+										<div class="flex items-center gap-2 text-[11px] {tr.success ? 'text-[var(--tag-green-text)]' : 'text-[var(--fg-error)]'}">
+											<span>{tr.success ? '✓' : '✗'}</span>
+											<span class="truncate">{tr.title}</span>
+											{#if tr.error}
+												<span class="text-[var(--fg-muted)] text-[10px]">- {tr.error}</span>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							{/if}
 						{/if}
 
 						{#if isAttached && msg.role === 'assistant' && isErrorPhase}
@@ -300,10 +339,10 @@
 					t.style.height = 'auto';
 					t.style.height = Math.min(t.scrollHeight, 160) + 'px';
 				}}
-				placeholder={isActive ? 'AI is working...' : app.currentDoc ? 'Type a message...' : 'Open a document to start'}
+				placeholder={isActive ? 'AI is working...' : app.currentProject ? (app.currentDoc ? 'Type a message...' : 'Describe what you want to create...') : 'Select a project first'}
 				class="flex-1 bg-[var(--bg-field)] border border-[var(--border-base)] rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-[var(--border-interactive)] focus:ring-1 focus:ring-[var(--border-interactive)] transition-all placeholder-[var(--fg-disabled)] text-[var(--fg-base)]"
 				rows="1"
-				disabled={!app.activeConnector || !app.currentDoc || isActive}
+				disabled={!app.activeConnector || !app.currentProject || isActive}
 			></textarea>
 			<div class="flex items-center gap-1.5">
 				{#if isActive}
@@ -315,8 +354,8 @@
 					</button>
 				{:else}
 					<button
-						onclick={sendMessage}
-						disabled={!app.chatInput.trim() || !app.activeConnector || !app.currentDoc}
+						onclick={() => (app.currentDoc?.id === app.globalConversation?.id) ? sendProjectMessage() : sendMessage()}
+						disabled={!app.chatInput.trim() || !app.activeConnector || !app.currentProject}
 						class="shrink-0 px-3 py-2 bg-[var(--fg-interactive)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors cursor-pointer text-[var(--fg-on-color)]"
 					>
 						Send

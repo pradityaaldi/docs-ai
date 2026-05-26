@@ -25,6 +25,102 @@ export async function loadConnectors() {
 	app.activeConnector = data.find((c: any) => c.is_active) || null;
 }
 
+// ── Projects ──
+
+export async function loadProjects() {
+	const res = await fetch('/api/projects');
+	const data = await res.json();
+	app.projects = data;
+	if (data.length > 0 && !app.currentProject) {
+		await enterProject(data[0]);
+	}
+}
+
+export async function createProject() {
+	const res = await fetch('/api/projects', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ name: 'New Project' })
+	});
+	const project = await res.json();
+	app.projects = [project, ...app.projects];
+	await enterProject(project);
+}
+
+export async function deleteProject(id: string) {
+	await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+	app.projects = app.projects.filter(p => p.id !== id);
+	if (app.currentProject?.id === id) {
+		app.currentProject = app.projects[0] || null;
+		app.sidebarView = 'projects';
+		if (app.currentProject) {
+			await enterProject(app.currentProject);
+		} else {
+			app.projectTree = [];
+			app.rootDocuments = [];
+		}
+	}
+}
+
+export async function enterProject(project: typeof app.projects[0]) {
+	app.currentProject = project;
+	app.currentDoc = null;
+	app.messages = [];
+	app.sidebarView = 'project-detail';
+	app.expandedFolderIds = new Set();
+	app.navigatingFolderId = null;
+
+	const res = await fetch(`/api/projects/${project.id}/tree`);
+	const data = await res.json();
+	app.projectTree = data.tree || [];
+	app.rootDocuments = data.rootDocuments || [];
+}
+
+export function exitToProjects() {
+	app.currentProject = null;
+	app.currentDoc = null;
+	app.messages = [];
+	app.projectTree = [];
+	app.rootDocuments = [];
+	app.sidebarView = 'projects';
+	app.expandedFolderIds = new Set();
+	app.navigatingFolderId = null;
+}
+
+// ── Folders ──
+
+export async function createFolder(parentId: string | null = null) {
+	if (!app.currentProject) return;
+	const res = await fetch(`/api/projects/${app.currentProject.id}/folders`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ name: 'New Folder', parent_id: parentId || undefined })
+	});
+	if (!res.ok) return;
+	await refreshTree();
+}
+
+export async function deleteFolder(id: string) {
+	await fetch(`/api/folders/${id}`, { method: 'DELETE' });
+	app.expandedFolderIds.delete(id);
+	await refreshTree();
+}
+
+export async function loadFolderContents(folderId: string) {
+	const res = await fetch(`/api/folders/${folderId}/contents`);
+	return await res.json();
+}
+
+async function refreshTree() {
+	if (!app.currentProject) return;
+	const res = await fetch(`/api/projects/${app.currentProject.id}/tree`);
+	const data = await res.json();
+	app.projectTree = data.tree || [];
+	app.rootDocuments = data.rootDocuments || [];
+}
+
+// ── Documents ──
+
 export async function loadDocuments() {
 	const res = await fetch('/api/documents');
 	const data = await res.json();
@@ -34,21 +130,40 @@ export async function loadDocuments() {
 	}
 }
 
-export async function selectDocument(doc: Document) {
-	app.currentDoc = doc;
-	const res = await fetch(`/api/documents/${doc.id}/messages`);
-	app.messages = await res.json();
+export async function selectDocument(doc: { id: string; title?: string }) {
+	const res = await fetch(`/api/documents/${doc.id}`);
+	if (res.ok) {
+		app.currentDoc = await res.json();
+	}
+	const msgRes = await fetch(`/api/documents/${doc.id}/messages`);
+	app.messages = await msgRes.json();
 }
 
-export async function createDocument() {
+export async function createDocument(folderId: string | null = null) {
+	if (!app.currentProject) {
+		const res = await fetch('/api/documents', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ title: 'New Document' })
+		});
+		const newDoc = await res.json();
+		app.documents = [newDoc, ...app.documents];
+		await selectDocument(newDoc);
+		return;
+	}
+
 	const res = await fetch('/api/documents', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ title: 'New Document' })
+		body: JSON.stringify({
+			title: 'New Document',
+			project_id: app.currentProject.id,
+			folder_id: folderId || app.navigatingFolderId || undefined
+		})
 	});
 	const newDoc = await res.json();
-	app.documents = [newDoc, ...app.documents];
 	await selectDocument(newDoc);
+	await refreshTree();
 }
 
 export async function saveDocument() {
@@ -62,13 +177,28 @@ export async function saveDocument() {
 
 export async function deleteDocument(id: string) {
 	await fetch(`/api/documents/${id}`, { method: 'DELETE' });
-	app.documents = app.documents.filter((d) => d.id !== id);
 	if (app.currentDoc?.id === id) {
-		app.currentDoc = app.documents[0] || null;
-		if (app.currentDoc) await selectDocument(app.currentDoc);
-		else app.messages = [];
+		app.currentDoc = null;
+		app.messages = [];
+	}
+	if (app.sidebarView === 'project-detail') {
+		await refreshTree();
+		app.rootDocuments = app.rootDocuments.filter(d => d.id !== id);
+		app.projectTree = removeDocFromTree(app.projectTree, id);
+	} else {
+		app.documents = app.documents.filter(d => d.id !== id);
 	}
 }
+
+function removeDocFromTree(nodes: typeof app.projectTree, docId: string): typeof app.projectTree {
+	return nodes.map(node => ({
+		...node,
+		documents: node.documents.filter(d => d.id !== docId),
+		children: removeDocFromTree(node.children, docId)
+	}));
+}
+
+// ── Messaging & Generation ──
 
 export async function sendMessage() {
 	const active = app.connectors.find(c => c.is_active) || null;

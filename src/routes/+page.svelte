@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { loadConnectors, loadDocuments } from '$lib/actions';
+	import { loadConnectors, loadProjects } from '$lib/actions';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
 	import DocumentPreview from '$lib/components/DocumentPreview.svelte';
@@ -8,12 +8,12 @@
 
 	$effect(() => {
 		loadConnectors();
-		loadDocuments();
+		loadProjects();
 	});
 </script>
 
 <div class="h-dvh flex overflow-hidden">
-	<div class="hidden h-full w-[220px] lg:flex">
+	<div class="hidden h-full w-[260px] lg:flex">
 		<Sidebar />
 	</div>
 	<div class="flex-1 flex min-w-0">

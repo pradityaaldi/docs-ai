@@ -425,18 +425,14 @@
 							</div>
 						{/each}
 					{:else}
-						<div
-							style="width: {Math.round(PAGE_W * effectiveZoom)}px; height: {Math.round(PAGE_H * effectiveZoom)}px"
-						>
-							<div
-								class="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
-								style="transform: scale({effectiveZoom}); transform-origin: top left; width: {PAGE_W}px; height: {PAGE_H}px"
-							>
-								<div class="p-16 flex flex-col items-center justify-center h-full text-center">
-									<svg width="32" height="32" viewBox="0 0 40 40" fill="none" class="mb-3 opacity-15"><path d="M8 6h16l8 8v20a2 2 0 01-2 2H10a2 2 0 01-2-2V8a2 2 0 012-2z" stroke="#6b7280" stroke-width="2"/></svg>
-								<p class="text-gray-400 text-sm">Document preview will appear here</p>
-								<p class="text-gray-400 text-xs mt-1">Chat with AI to generate content</p>
-							</div>
+						<div class="flex items-center justify-center h-full">
+							<div class="text-center">
+								<svg width="48" height="48" viewBox="0 0 48 48" fill="none" class="mx-auto mb-4 opacity-20">
+									<path d="M8 4h24l12 12v28a2 2 0 01-2 2H10a2 2 0 01-2-2V6a2 2 0 012-2z" stroke="currentColor" stroke-width="2" class="text-[var(--fg-muted)]"/>
+									<path d="M20 18h12M20 24h8M20 30h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="text-[var(--fg-muted)]"/>
+								</svg>
+								<p class="text-sm font-medium text-[var(--fg-muted)]">No document selected</p>
+								<p class="text-xs text-[var(--fg-muted)] mt-1 max-w-[220px] leading-relaxed">Select a document from the sidebar to preview and edit its content here</p>
 							</div>
 						</div>
 					{/if}

@@ -8,11 +8,43 @@ export interface Connector {
 	is_active: number;
 }
 
+export interface Project {
+	id: string;
+	name: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface Folder {
+	id: string;
+	name: string;
+	project_id: string;
+	parent_id: string | null;
+	created_at: string;
+}
+
+export interface TreeNode {
+	id: string;
+	name: string;
+	type: 'folder';
+	parent_id: string | null;
+	children: TreeNode[];
+	documents: DocEntry[];
+}
+
+export interface DocEntry {
+	id: string;
+	title: string;
+	updated_at: string;
+}
+
 export interface Document {
 	id: string;
 	title: string;
 	content: string;
 	connector_id: string | null;
+	project_id: string | null;
+	folder_id: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -55,9 +87,16 @@ export interface ChatStatus {
 export const app = $state({
 	connectors: [] as Connector[],
 	documents: [] as Document[],
+	projects: [] as Project[],
+	currentProject: null as Project | null,
+	projectTree: [] as TreeNode[],
+	rootDocuments: [] as DocEntry[],
 	activeConnector: null as Connector | null,
 	currentDoc: null as Document | null,
 	messages: [] as Message[],
+	sidebarView: 'projects' as 'projects' | 'project-detail',
+	expandedFolderIds: new Set<string>(),
+	navigatingFolderId: null as string | null,
 	chatInput: '',
 	isLoading: false,
 	abortController: null as AbortController | null,

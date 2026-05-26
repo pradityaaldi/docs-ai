@@ -37,7 +37,7 @@ interface DocxElement {
 	alignment?: 'left' | 'center' | 'right';
 }
 
-type DocxContent = 
+type DocxContent =
 	| { type: 'heading'; level: 1 | 2 | 3 | 4 | 5; text?: string; runs?: DocxRun[]; alignment?: 'left' | 'center' | 'right' }
 	| { type: 'paragraph'; text?: string; runs?: DocxRun[]; alignment?: 'left' | 'center' | 'right'; spacing?: number; spacingAfter?: number }
 	| { type: 'bullet'; items: string[] }
@@ -46,7 +46,8 @@ type DocxContent =
 	| { type: 'hr' }
 	| { type: 'code'; text: string; language?: string }
 	| { type: 'quote'; text: string }
-	| { type: 'image'; src: string; width?: number; height?: number }
+	| { type: 'image'; src: string; width?: number; height?: number; caption?: string }
+	| { type: 'illustration'; html?: string; width?: number; height?: number; caption?: string }
 	| { type: 'pageBreak' }
 	| { type: 'toc'; label?: string };
 
@@ -84,6 +85,19 @@ const PAGE_SIZES: Record<string, { width: number; height: number }> = {
 	Letter: { width: 12240, height: 15840 },
 	Legal: { width: 12240, height: 20160 }
 };
+
+function decodeImageSrc(src?: string): { type: 'png' | 'jpg' | 'gif' | 'bmp'; data: Buffer } | null {
+	if (!src) return null;
+	const m = /^data:image\/(png|jpe?g|gif|bmp);base64,(.+)$/i.exec(src.trim());
+	if (!m) return null;
+	const ext = m[1].toLowerCase();
+	const type = (ext === 'jpeg' ? 'jpg' : ext) as 'png' | 'jpg' | 'gif' | 'bmp';
+	try {
+		return { type, data: Buffer.from(m[2], 'base64') };
+	} catch {
+		return null;
+	}
+}
 
 function alignType(a?: string): AlignmentType {
 	if (a === 'center') return AlignmentType.CENTER;
@@ -279,14 +293,38 @@ export function docxJsonToDocument(json: DocxDocument): Document {
 				break;
 			}
 			case 'image': {
+				const decoded = decodeImageSrc(el.src);
+				if (!decoded) break;
+				const w = el.width ?? 480;
+				const h = el.height ?? 320;
 				children.push(
 					new Paragraph({
 						children: [new ImageRun({
-							src: el.src,
-							width: el.width ?? 300,
-							height: el.height ?? 200
-						})],
-						alignment: AlignmentType.CENTER
+							type: decoded.type,
+							data: decoded.data,
+							transformation: { width: w, height: h }
+						} as any)],
+						alignment: AlignmentType.CENTER,
+						spacing: { before: 120, after: el.caption ? 40 : 120 }
+					})
+				);
+				if (el.caption) {
+					children.push(
+						new Paragraph({
+							children: [new TextRun({ text: el.caption, italics: true, color: '64748b', size: fontSize - 4, font })],
+							alignment: AlignmentType.CENTER,
+							spacing: { before: 0, after: 120 }
+						})
+					);
+				}
+				break;
+			}
+			case 'illustration': {
+				children.push(
+					new Paragraph({
+						children: [new TextRun({ text: '[Illustration was not pre-rendered before export]', italics: true, color: '94a3b8', size: fontSize - 2, font })],
+						alignment: AlignmentType.CENTER,
+						spacing: { before: 120, after: 120 }
 					})
 				);
 				break;

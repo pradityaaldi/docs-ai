@@ -4,7 +4,7 @@ import getDb from '$lib/server/db';
 
 // POST /api/export/docx - export document as DOCX
 export const POST: RequestHandler = async ({ request }) => {
-	const { document_id } = await request.json();
+	const { document_id, content } = await request.json();
 
 	const db = getDb();
 	const document = db.prepare('SELECT * FROM documents WHERE id = ?').get(document_id) as any;
@@ -12,7 +12,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
 	}
 
-	const buffer = await generateDocxBuffer(document.content || '');
+	const source = typeof content === 'string' && content.trim() ? content : (document.content || '');
+	const buffer = await generateDocxBuffer(source);
 
 	return new Response(buffer, {
 		headers: {

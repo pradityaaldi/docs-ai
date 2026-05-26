@@ -82,7 +82,8 @@ The JSON must follow this exact structure:
     { "type": "code", "text": "console.log('hello');" },
     { "type": "quote", "text": "Important callout" },
     { "type": "pageBreak" },
-    { "type": "toc", "label": "Daftar Isi" }
+    { "type": "toc", "label": "Daftar Isi" },
+    { "type": "illustration", "html": "<div style=\"display:flex;gap:16px;justify-content:center;align-items:center;font-family:Arial,sans-serif\"><div style=\"padding:12px 20px;background:#3b82f6;color:#fff;border-radius:8px\">Start</div><div style=\"font-size:24px;color:#64748b\">→</div><div style=\"padding:12px 20px;background:#10b981;color:#fff;border-radius:8px\">Process</div><div style=\"font-size:24px;color:#64748b\">→</div><div style=\"padding:12px 20px;background:#f59e0b;color:#fff;border-radius:8px\">End</div></div>", "width": 640, "height": 120, "caption": "Optional caption" }
   ]
 }
 
@@ -99,6 +100,13 @@ Rules:
 - "runs" gives precise per-character control: bold, italic, underline, strike, color, size, font, link
 - In "text" fields, use **bold**, *italic*, \`code\`, [link](url) inline shortcuts
 - Use "table" for structured data; add "alignments" array if needed
+- Use "illustration" for flowcharts, diagrams, org charts, simple infographics. The "html" string is rendered inside an SVG <foreignObject> at the given width/height (pixels), then rasterized to PNG and embedded as an image. Rules:
+  - Self-contained inline CSS only (style="..."). NO external <link>, <script>, @import, <img src="http(s)://...">, web fonts, or remote resources — they will not load.
+  - Stick to common system fonts (Arial, Helvetica, Georgia, "Courier New") and inline SVG for shapes/arrows. Inline data: URLs for raster art are OK but discouraged.
+  - Keep width <= 720 and height proportional to content. Default 640x400 if unsure.
+  - Add a "caption" when the illustration needs a label.
+  - Build flowcharts with flex/grid layouts of styled <div> boxes and inline <svg> arrows between them. Use color, padding, border-radius freely.
+  - Escape any quotes inside the html string per JSON rules.
 - Be thorough and detailed — real business content, not placeholders
 - NEVER wrap output in <think> tags or code fences — output ONLY the raw JSON
 

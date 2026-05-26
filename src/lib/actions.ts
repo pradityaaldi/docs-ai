@@ -1,4 +1,5 @@
 import { app, setPhase, type Document } from '$lib/stores/app.svelte';
+import { inlineIllustrations } from '$lib/shared/illustration';
 
 function stripThink(text: string): string {
 	let s = text.replace(/<think>[\s\S]*?<\/think>/g, '');
@@ -272,12 +273,27 @@ export async function clearMessages() {
 	app.currentDoc = { ...app.currentDoc, content: '' };
 }
 
+async function preRenderedContent(): Promise<string | undefined> {
+	const raw = app.currentDoc?.content || '';
+	if (!raw || !raw.includes('"illustration"')) return undefined;
+	try {
+		const doc = JSON.parse(cleanDocJSON(raw));
+		if (!doc || !Array.isArray(doc.content)) return undefined;
+		const inlined = await inlineIllustrations(doc);
+		return JSON.stringify(inlined);
+	} catch (e) {
+		console.warn('[export] pre-render failed, falling back to raw content', e);
+		return undefined;
+	}
+}
+
 export async function exportDocx() {
 	if (!app.currentDoc) return;
+	const content = await preRenderedContent();
 	const res = await fetch('/api/export/docx', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ document_id: app.currentDoc.id })
+		body: JSON.stringify({ document_id: app.currentDoc.id, content })
 	});
 	const blob = await res.blob();
 	const url = URL.createObjectURL(blob);

@@ -3,6 +3,13 @@
 	import { saveDocument, exportDocx, exportPdf } from '$lib/actions';
 	import CodeEditor from '$lib/components/ui/CodeEditor.svelte';
 	import { normalizeDoc, defaultTocLabel, type TocItem } from '$lib/shared/toc';
+	import {
+		renderIllustration,
+		illustrationKey,
+		getCachedIllustration,
+		ILLUSTRATION_DEFAULT_W,
+		ILLUSTRATION_DEFAULT_H
+	} from '$lib/shared/illustration';
 	import prettier from 'prettier/standalone';
 	import * as parserBabel from 'prettier/plugins/babel';
 	import * as parserEstree from 'prettier/plugins/estree';
@@ -186,6 +193,29 @@
 				return `<pre style="background:#f3f4f6;padding:12px;border-radius:4px;overflow-x:auto;font-family:'Courier New',monospace;font-size:${bodySize-0.5}pt;color:#374151;margin:8px 0">${escapeHtml(el.text || '')}</pre>`;
 			case 'quote':
 				return `<blockquote style="border-left:4px solid #3b82f6;margin:12px 0;padding:8px 16px;background:#f8fafc;color:#475569;font-style:italic">${escapeHtml(el.text || '')}</blockquote>`;
+			case 'illustration': {
+				const w = Number(el.width) || ILLUSTRATION_DEFAULT_W;
+				const h = Number(el.height) || ILLUSTRATION_DEFAULT_H;
+				const cap = el.caption ? escapeHtml(el.caption) : '';
+				const src = el.html ? ensureIllustration(String(el.html), w, h) : null;
+				const inner = src
+					? `<img src="${src}" alt="${cap || 'illustration'}" style="display:block;max-width:100%;height:auto" />`
+					: `<div style="display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:${w}/${h};background:#f1f5f9;color:#94a3b8;font-size:${bodySize-1}pt;border:1px dashed #cbd5e1">Rendering illustration…</div>`;
+				const capHtml = cap
+					? `<div style="text-align:center;color:#64748b;font-size:${bodySize-1.5}pt;margin-top:4px;font-style:italic">${cap}</div>`
+					: '';
+				return `<figure style="margin:16px 0;text-align:center">${inner}${capHtml}</figure>`;
+			}
+			case 'image': {
+				const w = Number(el.width) || 400;
+				const cap = el.caption ? escapeHtml(el.caption) : '';
+				const src = escapeHtml(el.src || '');
+				if (!src) return '';
+				const capHtml = cap
+					? `<div style="text-align:center;color:#64748b;font-size:${bodySize-1.5}pt;margin-top:4px;font-style:italic">${cap}</div>`
+					: '';
+				return `<figure style="margin:16px 0;text-align:center"><img src="${src}" alt="${cap || 'image'}" style="display:block;max-width:${w}px;margin:0 auto;height:auto" />${capHtml}</figure>`;
+			}
 			case 'pageBreak':
 				return '__PAGEBREAK__';
 			case 'toc': {
@@ -216,6 +246,7 @@
 	type DocCtx = { font: string; bodySize: number; blocks: string[] };
 
 	let docCtx = $derived.by<DocCtx | null>(() => {
+		void illustrationTick;
 		const raw = app.currentDoc?.content || '';
 		if (!raw) return null;
 		const doc = salvageDoc(raw);
@@ -231,6 +262,28 @@
 
 	let measurer = $state<HTMLDivElement>();
 	let pages = $state<string[][]>([[]]);
+	let illustrationTick = $state(0);
+	const pendingIllustrations = new Set<string>();
+
+	function ensureIllustration(html: string, width: number, height: number): string | null {
+		const key = illustrationKey(html, width, height);
+		const cached = getCachedIllustration(key);
+		if (cached) return cached;
+		if (pendingIllustrations.has(key)) return null;
+		pendingIllustrations.add(key);
+		renderIllustration(html, width, height)
+			.then(() => {
+				illustrationTick++;
+			})
+			.catch((e) => {
+				console.error('[illustration] render failed', e);
+				illustrationTick++;
+			})
+			.finally(() => {
+				pendingIllustrations.delete(key);
+			});
+		return null;
+	}
 
 	$effect(() => {
 		const ctx = docCtx;

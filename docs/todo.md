@@ -1,6 +1,7 @@
 # TODO — MVP
 
-Order: db → auth → app → payment. Chase demo flow.
+Order: db → auth → app → payment → admin. Chase demo flow.
+Goal: Full MVP (Sprint 0–7), autonomous.
 
 `[x]` = done · `[ ]` = todo
 
@@ -24,49 +25,55 @@ Done = app runs on Postgres, existing features work.
 
 ---
 
-## Sprint 1 — Auth
+## Sprint 1 — Auth (full)
 
-- [ ] users table (id, email, password_hash, name, created_at)
+- [ ] users table (email, password_hash nullable, name, role, email_verified, created_at)
 - [ ] sessions table or cookie session
-- [ ] register page + endpoint (hash password)
+- [ ] oauth_accounts + email_verification_tokens + password_reset_tokens tables
+- [ ] `src/lib/server/email.ts` — Brevo send helper (API/SMTP)
+- [ ] register page + endpoint (hash password) → send verify email
+- [ ] email verify endpoint (consume token, set email_verified)
 - [ ] login page + endpoint
+- [ ] forgot password + reset password (Brevo email + token)
+- [ ] Google OAuth flow (code + env placeholder, creds nyusul)
 - [ ] logout
 - [ ] hooks.server.ts: load user from session
-- [ ] protect dashboard routes (redirect if no user)
+- [ ] protect dashboard routes (redirect if no user / unverified)
 - [ ] scope projects/documents to user_id
 
-Done = user register, login, see own dashboard.
+Done = user register, verify email, login (password + Google), reset password, see own dashboard.
 
 ---
 
-## Sprint 2 — Project + Template
+## Sprint 2 — Template Gallery
 
 - [x] projects CRUD
 - [x] folders CRUD
 - [x] documents CRUD
-- [ ] templates table (kampus, struktur BAB, font, margin, spasi, heading)
-- [ ] seed 3 templates: Amikom, UGM, UNY
-- [ ] create-project form: kampus, jenis dokumen, jurusan, ide, bahasa
-- [ ] store template_id on project
+- [ ] templates table (gallery: name, slug, category, kampus/org, struktur,
+      format, form_fields, is_active)
+- [ ] seed templates: Skripsi UGM/UNY/Amikom, Makalah, Surat Izin Sakit, Surat Izin/Cuti
+- [ ] template specs from internet (struktur BAB, font, margin, spasi, daftar pustaka)
+- [ ] template gallery UI (browse + filter kategori + pilih) — Google Docs style
+- [ ] create-project from template: render form_fields + bahasa, store template_id + input
 - [ ] dashboard: project list + status + new button
 
-Done = user creates project with kampus template.
+Done = user browse gallery, pilih template, isi form, project tercipta.
 
 ---
 
-## Sprint 3 — AI Thesis Flow
+## Sprint 3 — AI Single-Shot Generate
 
 - [x] AI integration (OpenAI/Anthropic/Gemini)
 - [x] DOCX JSON streaming generate
-- [ ] prompt: 5 alternatif judul from ide
-- [ ] UI: show judul list → user picks one
-- [ ] prompt: outline BAB I–V from judul + template
-- [ ] prompt: draft BAB I from outline
-- [ ] save each step to db
-- [ ] regenerate button per step
+- [ ] per-template prompt builder (struktur + format + form input + bahasa)
+- [ ] single generate endpoint → full DOCX JSON (stream)
+- [ ] long docs (skripsi): generate section-by-section server-side, assemble jadi 1 doc
+- [ ] save result to db
+- [ ] regenerate button (full doc / per-section)
 - [ ] count ai_generations per user (for quota)
 
-Done = ide → judul → outline → BAB I.
+Done = pilih template → isi form → 1 generate → dokumen full.
 
 ---
 
@@ -74,9 +81,9 @@ Done = ide → judul → outline → BAB I.
 
 - [x] document preview
 - [x] code/JSON editor
-- [ ] edit per section (Latar Belakang, Rumusan, etc)
+- [ ] edit per section
 - [ ] save (manual or auto)
-- [ ] project status field: belum mulai / outline / BAB I / siap export
+- [ ] project status field: belum mulai / generated / siap export
 
 Done = user edits AI result.
 
@@ -86,15 +93,15 @@ Done = user edits AI result.
 
 - [x] DOCX export endpoint
 - [x] headings/lists/tables/images
-- [ ] cover page from template (kampus, judul, nama, jurusan)
+- [ ] cover/kop page from template (kampus/org, judul, nama, dll)
 - [ ] apply template format (font, margin, spasi)
-- [ ] export outline + BAB I
+- [ ] export full document
 
-Done = download rapi DOCX.
+Done = download rapi DOCX per template.
 
 ---
 
-## Sprint 6 — Payment (Midtrans) + Quota
+## Sprint 6 — Payment (Midtrans) + Hard Paywall + Quota
 
 - [ ] plans table (name, quota, max_projects, price)
 - [ ] subscriptions table (user_id, plan_id, status, expires_at)
@@ -105,13 +112,13 @@ Done = download rapi DOCX.
 - [ ] custom UI: embed Snap token OR Core API card form (no redirect)
 - [ ] webhook endpoint: receive Midtrans notification, verify signature
 - [ ] on `settlement`/`capture` → activate subscription + set expires_at
-- [ ] middleware: block app if no active subscription
+- [ ] hard paywall middleware: block app if no active subscription
 - [ ] subscription-expired page → link to payment page
 - [ ] enforce quota on generate
 - [ ] enforce max projects
-- [ ] admin page: manual activate (fallback)
+- [ ] admin page: manual activate (fallback for demo/testing)
 
-Done = user pays via Midtrans on custom page → access auto-active.
+Done = user pays via Midtrans on custom page → access auto-active. No sub = blocked.
 
 ---
 
@@ -122,7 +129,7 @@ See [ai-admin.md](./ai-admin.md).
 - [ ] role on users (user/admin), admin-only route guard
 - [ ] admin AI config page: set provider/key/model + test + activate
 - [ ] generate reads active `ai_config`
-- [ ] log every generate to `ai_generations` (tokens, cost, status, latency)
+- [ ] log every generate to `ai_generations` (tokens, cost, status, latency, template/category)
 - [ ] admin monitoring page: usage today/month, per-user, errors
 - [ ] `ai_limits` table + admin form
 - [ ] guard generate: kill switch, caps, rate limit, max tokens
@@ -134,16 +141,13 @@ Done = admin controls AI, sees usage, limits protect cost, Telegram warns.
 
 ---
 
-## Demo flow checklist
+## Demo flow checklist (multi-doc showcase)
 
-- [ ] login
+- [ ] login (password + Google)
 - [ ] dashboard
-- [ ] buat project
-- [ ] pilih kampus + template
-- [ ] input ide
-- [ ] AI judul → pilih
-- [ ] AI outline BAB I–V
-- [ ] AI BAB I
-- [ ] edit
-- [ ] export DOCX
-- [ ] DOCX rapi
+- [ ] buka template gallery
+- [ ] pilih template (skripsi)
+- [ ] isi form → generate → edit → export DOCX
+- [ ] ulang: makalah
+- [ ] ulang: surat izin
+- [ ] DOCX rapi tiap jenis

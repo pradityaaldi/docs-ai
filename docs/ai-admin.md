@@ -15,13 +15,14 @@ User generate calls read active `ai_config`. No env, no user UI.
 
 ## 2. Monitoring (admin dashboard)
 
-Every generate writes `ai_generations`: tokens, cost, status, latency.
+Every generate writes `ai_generations`: tokens, cost, status, latency,
+template_id + category.
 
 Admin views:
 - total tokens / cost today, this month
 - per-user usage (top users)
 - error rate, avg latency
-- generate count by type (judul/outline/bab)
+- generate count by category (skripsi/makalah/surat)
 
 ## 3. Safety system (`ai_limits`)
 
@@ -34,15 +35,16 @@ Guard before each generate. Block if any breached.
 - **rate limit** — req/min per user
 - **max tokens per request**
 
-Check flow:
+Check flow (single-shot generate):
 ```
-user clicks generate
+user pilih template → isi form → klik generate
 ↓
 load ai_limits
 ↓
 kill switch off? quota ok? rate ok? under caps?
 ↓ no  → block + message
-↓ yes → call AI → log usage → recheck caps
+↓ yes → call AI (single-shot, long docs section-by-section server-side)
+        → log usage → recheck caps
 ```
 
 ## 4. Telegram alerts

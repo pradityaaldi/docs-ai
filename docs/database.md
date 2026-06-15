@@ -23,18 +23,33 @@ timestamps `timestamptz` default now · JSON cols = `jsonb`.
 
 ```
 users
-  id, email, password_hash, name, role (user/admin), created_at
+  id, email (unique), password_hash (nullable for oauth-only), name,
+  role (user/admin), email_verified (bool), created_at
 
 sessions          (or signed cookie)
   id, user_id, expires_at
+
+oauth_accounts                  (Google login)
+  id, user_id, provider (google), provider_account_id (unique), created_at
+
+email_verification_tokens
+  id, user_id, token (unique), expires_at, created_at
+
+password_reset_tokens
+  id, user_id, token (unique), expires_at, used (bool), created_at
 
 ai_config                       (admin-only, set in dashboard)
   id, provider (openai/anthropic/gemini), api_key, model,
   base_url, is_active, updated_by, updated_at
 
-templates
-  id, kampus, jenis, struktur_bab (jsonb),
-  font, font_size, margin, spasi, heading_style, daftar_pustaka_style
+templates                       (gallery — Google Docs style)
+  id, name (e.g. "Skripsi UGM"), slug (unique),
+  category (skripsi/makalah/surat), kampus (nullable), org (nullable),
+  description, struktur (jsonb — sections/BAB),
+  format (jsonb — font, font_size, margin, spasi, heading_style,
+    daftar_pustaka_style, cover/kop config),
+  form_fields (jsonb — fields to ask user before generate),
+  is_active, created_at
 
 plans
   id, name, quota, max_projects, price
@@ -48,7 +63,7 @@ payments                        (Midtrans)
   payment_type, created_at, updated_at
 
 ai_generations                  (usage log + monitoring)
-  id, user_id, project_id, type (judul/outline/bab),
+  id, user_id, project_id, template_id, category,
   prompt_tokens, completion_tokens, total_tokens, cost,
   status (ok/error), error, latency_ms, created_at
 
@@ -62,7 +77,22 @@ alerts                          (telegram log)
   message, sent_at
 ```
 
-## Payment flow (Midtrans)
+### form_fields example (templates.form_fields jsonb)
+
+```
+Skripsi UGM:   [judul/ide, nama, NIM, jurusan, dosen_pembimbing, bahasa]
+Makalah:       [judul/topik, nama, mata_kuliah, jurusan, bahasa]
+Surat Izin Sakit: [nama, kelas/jurusan, tanggal, alasan, ditujukan_ke, bahasa]
+```
+
+### Seed templates (MVP)
+
+```
+Skripsi UGM · Skripsi UNY · Skripsi Amikom · Makalah/Tugas Kuliah ·
+Surat Izin Sakit · Surat Izin/Cuti
+```
+
+## Payment flow (Midtrans) — hard paywall
 
 ```
 user pilih plan (custom payment page)
@@ -76,15 +106,19 @@ user bayar
 Midtrans webhook → verify signature → update payments.status
 ↓
 on settlement → create/extend subscription, set expires_at
+↓
+no active subscription → app blocked (hard paywall), redirect to payment page
 ```
 
+Admin manual-activate subscription = fallback buat demo/testing.
 Sandbox first. Keys in env: `MIDTRANS_SERVER_KEY`, `MIDTRANS_CLIENT_KEY`.
 
 ## Alter existing
 
-- `projects`: add `user_id`, `template_id`, `kampus`, `jenis`, `jurusan`, `ide`, `bahasa`, `status`
+- `projects`: add `user_id`, `template_id`, `input` (jsonb form answers),
+  `bahasa`, `status`
 - `documents`: add `user_id`
 
 ## Status values
 
-`belum mulai` · `outline` · `bab 1` · `siap export`
+`belum mulai` · `generated` · `siap export`

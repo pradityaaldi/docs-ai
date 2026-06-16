@@ -44,7 +44,7 @@
 			}
 			await loadSnap(d.snap_url, d.client_key);
 			(window as any).snap.pay(d.token, {
-				onSuccess: () => goto('/'),
+				onSuccess: () => goto('/app'),
 				onPending: () => (info = 'Pembayaran pending. Akses aktif setelah pembayaran dikonfirmasi.'),
 				onError: () => (error = 'Pembayaran gagal.'),
 				onClose: () => (info = 'Popup pembayaran ditutup.')
@@ -60,7 +60,7 @@
 <div class="min-h-dvh bg-[var(--bg-base)]">
 	<PageHeader title="Pilih Paket" subtitle="Berlangganan untuk mulai generate dokumen.">
 		{#snippet actions()}
-			{#if data.active}<a href="/" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>{/if}
+			{#if data.active}<a href="/app" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>{/if}
 		{/snippet}
 	</PageHeader>
 

@@ -73,7 +73,7 @@
 <div class="min-h-dvh bg-[var(--bg-base)]">
 	<PageHeader title="Admin · Paperio">
 		{#snippet actions()}
-			<a href="/" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>
+			<a href="/app" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>
 		{/snippet}
 	</PageHeader>
 

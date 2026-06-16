@@ -86,5 +86,5 @@ export const GET: RequestHandler = async (event) => {
 	const session = await createSession(userId);
 	setSessionCookie(event, session.id, session.expiresAt);
 
-	throw redirect(302, '/');
+	throw redirect(302, '/app');
 };

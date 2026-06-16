@@ -24,5 +24,5 @@ export const load: PageServerLoad = async (event) => {
 	const session = await createSession(row.userId);
 	setSessionCookie(event, session.id, session.expiresAt);
 
-	throw redirect(303, '/');
+	throw redirect(303, '/app');
 };

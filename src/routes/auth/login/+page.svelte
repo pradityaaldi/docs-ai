@@ -30,7 +30,7 @@
 				error = data.error || 'Login gagal';
 				return;
 			}
-			goto('/');
+			goto('/app');
 		} finally {
 			loading = false;
 		}

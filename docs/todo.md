@@ -3,6 +3,12 @@
 Order: db → auth → app → payment → admin. Chase demo flow.
 Goal: Full MVP (Sprint 0–7), autonomous.
 
+> **STATUS 2026-06-16: Sprint 0–7 SELESAI.** `bun run check` 0 error, `bun run build` (adapter-node) sukses.
+> Postgres+Drizzle, full auth (email verify/forgot/Google OAuth), template gallery (6 template seeded),
+> single-shot generate (skripsi per-section, surat/makalah single), editor+save, DOCX export (format template),
+> Midtrans Snap+webhook+hard paywall+quota, admin dashboard (AI config/monitor/safety+Telegram).
+> Sisa minor: regenerate full-doc saja (belum per-section); max_tokens_per_req belum di-thread ke generate.
+
 `[x]` = done · `[ ]` = todo
 
 ---

@@ -99,13 +99,13 @@ function decodeImageSrc(src?: string): { type: 'png' | 'jpg' | 'gif' | 'bmp'; da
 	}
 }
 
-function alignType(a?: string): AlignmentType {
+function alignType(a?: string) {
 	if (a === 'center') return AlignmentType.CENTER;
 	if (a === 'right') return AlignmentType.RIGHT;
 	return AlignmentType.LEFT;
 }
 
-function headingLevel(level: number): HeadingLevel {
+function headingLevel(level: number) {
 	switch (level) {
 		case 2: return HeadingLevel.HEADING_2;
 		case 3: return HeadingLevel.HEADING_3;
@@ -217,10 +217,10 @@ export function docxJsonToDocument(json: DocxDocument): Document {
 				const colCount = el.headers.length;
 				const colWidth = Math.floor(100 / colCount);
 				const cellBorders = {
-					top: { style: BorderStyle.SINGLE as const, size: 1, color: 'd1d5db' },
-					bottom: { style: BorderStyle.SINGLE as const, size: 1, color: 'd1d5db' },
-					left: { style: BorderStyle.SINGLE as const, size: 1, color: 'd1d5db' },
-					right: { style: BorderStyle.SINGLE as const, size: 1, color: 'd1d5db' }
+					top: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' },
+					bottom: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' },
+					left: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' },
+					right: { style: BorderStyle.SINGLE, size: 1, color: 'd1d5db' }
 				};
 
 				const headerRow = new TableRow({

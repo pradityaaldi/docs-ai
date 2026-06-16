@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../../app.css';
-	import { PageHeader, Tabs } from '$lib/components/ui';
+	import { PageHeader, Tabs, ArrowLeftIcon, GraduationCapIcon, FileTextIcon, MailIcon, FilesIcon } from '$lib/components/ui';
+	import type { Component } from 'svelte';
 	let { data } = $props();
 
 	const CATS = [
@@ -20,13 +21,13 @@
 		makalah: 'Makalah',
 		surat: 'Surat'
 	};
-	const catEmoji: Record<string, string> = { skripsi: '🎓', makalah: '📄', surat: '✉️' };
+	const catIcon: Record<string, Component> = { skripsi: GraduationCapIcon, makalah: FileTextIcon, surat: MailIcon };
 </script>
 
 <div class="min-h-dvh bg-[var(--bg-base)]">
 	<PageHeader title="Galeri Template" subtitle="Pilih template siap pakai, isi form, AI bikin dokumennya.">
 		{#snippet actions()}
-			<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>
+			<a href="/" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>
 		{/snippet}
 	</PageHeader>
 
@@ -35,12 +36,13 @@
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 			{#each filtered as t (t.id)}
+				{@const Icon = catIcon[t.category] ?? FilesIcon}
 				<a
 					href="/templates/{t.slug}"
 					class="group bg-[var(--bg-component)] border border-[var(--border-base)] rounded-xl overflow-hidden hover:border-[var(--border-interactive)] transition-colors"
 				>
-					<div class="h-28 flex items-center justify-center text-5xl bg-[var(--bg-base-hover)] border-b border-[var(--border-base)]">
-						{catEmoji[t.category] ?? '📑'}
+					<div class="h-28 flex items-center justify-center bg-[var(--bg-base-hover)] border-b border-[var(--border-base)] text-[var(--fg-muted)] group-hover:text-[var(--fg-interactive)] transition-colors">
+						<Icon size={44} />
 					</div>
 					<div class="p-4">
 						<div class="flex items-center gap-2 mb-1">

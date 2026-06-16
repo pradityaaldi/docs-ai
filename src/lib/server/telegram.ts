@@ -39,6 +39,6 @@ export async function sendAlert(type: string, message: string): Promise<void> {
 
 	if (recent) return; // already alerted today for this type
 
-	await sendTelegram(`⚠️ <b>Paperio</b>: ${message}`);
+	await sendTelegram(`<b>Paperio</b> [ALERT]: ${message}`);
 	await db.insert(alerts).values({ type, message });
 }

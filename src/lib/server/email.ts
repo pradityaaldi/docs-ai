@@ -60,7 +60,7 @@ export function verifyEmailTemplate(token: string): { subject: string; html: str
 	return {
 		subject: 'Verifikasi email Paperio kamu',
 		html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto">
-			<h2>Selamat datang di Paperio 👋</h2>
+			<h2>Selamat datang di Paperio</h2>
 			<p>Klik tombol di bawah untuk verifikasi email kamu:</p>
 			<p><a href="${url}" style="display:inline-block;padding:12px 20px;background:#3b82f6;color:#fff;border-radius:8px;text-decoration:none">Verifikasi Email</a></p>
 			<p style="color:#64748b;font-size:13px">Atau buka link ini: <br>${url}</p>

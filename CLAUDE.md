@@ -98,6 +98,11 @@ import { Button, Input, Card, Alert, PageHeader, Tabs } from '$lib/components/ui
   `var(--border-base)`, `var(--tag-red-bg)`). No hardcoded hex in components. Dark theme.
 - Class override: every primitive accepts `class` and merges it last.
 - Pages that own a full screen import `../app.css` and wrap in `min-h-dvh bg-[var(--bg-base)]`.
+- **No emoji.** Never use emoji or decorative Unicode glyphs (✓ ✗ ← → ⚠️ ✅ 📧 …) in UI,
+  components, pages, strings, or copy. Use an SVG icon from `ui/icons/` instead — each icon is
+  its own Svelte component (`stroke="currentColor"`, sized via `size` prop). Need a new glyph?
+  Add an icon component to `ui/icons/`, export it from `ui/icons/index.ts`, then use it. This
+  also covers server-sent text (emails, Telegram): plain words, no emoji.
 
 When a markup pattern repeats across pages, extract a primitive into `ui/` and add it to
 `ui/index.ts` rather than copy-pasting.

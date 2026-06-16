@@ -1,6 +1,6 @@
 <script lang="ts">
 	import AuthShell from '$lib/components/auth/AuthShell.svelte';
-	import { Button, Input } from '$lib/components/ui';
+	import { Button, Input, MailIcon } from '$lib/components/ui';
 
 	let email = $state('');
 	let loading = $state(false);
@@ -25,7 +25,7 @@
 <AuthShell>
 	{#if done}
 		<div class="text-center">
-			<div class="text-4xl mb-3">📧</div>
+			<div class="flex justify-center mb-3 text-[var(--fg-interactive)]"><MailIcon size={40} /></div>
 			<h1 class="text-lg font-semibold mb-1">Cek email kamu</h1>
 			<p class="text-sm text-[var(--fg-muted)]">Kalau email terdaftar, kami kirim link reset password.</p>
 			<a href="/auth/login" class="inline-block mt-4 text-sm text-[var(--fg-interactive)] underline">Ke login</a>

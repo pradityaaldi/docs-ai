@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../../../app.css';
 	import { goto } from '$app/navigation';
-	import { Alert, Button, Card, Field, Input, Select, Textarea } from '$lib/components/ui';
+	import { Alert, Button, Card, Field, Input, Select, Textarea, ArrowLeftIcon } from '$lib/components/ui';
 	let { data } = $props();
 
 	const fields = data.template.formFields ?? [];
@@ -44,7 +44,7 @@
 
 <div class="min-h-dvh bg-[var(--bg-base)] flex justify-center">
 	<div class="w-full max-w-xl px-6 py-8">
-		<a href="/templates" class="text-sm text-[var(--fg-interactive)] hover:underline">← Galeri</a>
+		<a href="/templates" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Galeri</a>
 
 		<div class="mt-4 mb-6">
 			<h1 class="text-xl font-semibold">{data.template.name}</h1>

@@ -2,7 +2,7 @@
 	import AuthShell from '$lib/components/auth/AuthShell.svelte';
 	import Divider from '$lib/components/auth/Divider.svelte';
 	import GoogleButton from '$lib/components/auth/GoogleButton.svelte';
-	import { Alert, Button, Input } from '$lib/components/ui';
+	import { Alert, Button, Input, MailIcon } from '$lib/components/ui';
 
 	let name = $state('');
 	let email = $state('');
@@ -36,7 +36,7 @@
 <AuthShell>
 	{#if done}
 		<div class="text-center">
-			<div class="text-4xl mb-3">📧</div>
+			<div class="flex justify-center mb-3 text-[var(--fg-interactive)]"><MailIcon size={40} /></div>
 			<h1 class="text-lg font-semibold mb-1">Cek email kamu</h1>
 			<p class="text-sm text-[var(--fg-muted)]">Kami kirim link verifikasi ke <b>{email}</b>. Klik link itu untuk aktifkan akun.</p>
 			<a href="/auth/login" class="inline-block mt-4 text-sm text-[var(--fg-interactive)] underline">Ke login</a>

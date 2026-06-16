@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../../app.css';
 	import { onMount } from 'svelte';
-	import { Button, Card, Input, PageHeader, Select, StatCard, Tabs } from '$lib/components/ui';
+	import { Button, Card, Input, PageHeader, Select, StatCard, Tabs, ArrowLeftIcon, CheckIcon, CheckCircleIcon, XCircleIcon } from '$lib/components/ui';
 
 	const TABS = [
 		{ key: 'config', label: 'AI Config' },
@@ -14,16 +14,19 @@
 	let configs = $state<any[]>([]);
 	let newCfg = $state({ provider: 'openai', model: '', baseUrl: '', apiKey: '' });
 	let testMsg = $state('');
+	let testOk = $state<boolean | null>(null);
 	let cfgMsg = $state('');
 
 	let limits = $state<any>(null);
 	let limitsMsg = $state('');
+	let limitsOk = $state<boolean | null>(null);
 
 	let stats = $state<any>(null);
 
 	let actEmail = $state('');
 	let actPlan = $state('Basic');
 	let actMsg = $state('');
+	let actOk = $state<boolean | null>(null);
 
 	async function loadConfigs() { configs = await (await fetch('/api/admin/ai-config')).json(); }
 	async function loadLimits() { limits = await (await fetch('/api/admin/limits')).json(); }
@@ -45,29 +48,32 @@
 	async function activate(id: string) { await fetch(`/api/admin/ai-config/${id}/activate`, { method: 'POST' }); await loadConfigs(); }
 	async function delConfig(id: string) { await fetch(`/api/admin/ai-config/${id}`, { method: 'DELETE' }); await loadConfigs(); }
 	async function testConfig(id: string) {
+		testOk = null;
 		testMsg = 'Testing…';
 		const r = await (await fetch('/api/admin/ai-config/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })).json();
-		testMsg = r.success ? '✅ Koneksi OK' : `❌ ${r.error}`;
+		testOk = !!r.success;
+		testMsg = r.success ? 'Koneksi OK' : r.error;
 	}
 
 	async function saveLimits() {
 		limitsMsg = '';
 		const res = await fetch('/api/admin/limits', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(limits) });
-		if (res.ok) { limits = await res.json(); limitsMsg = 'Tersimpan ✓'; } else limitsMsg = 'Gagal';
+		if (res.ok) { limits = await res.json(); limitsMsg = 'Tersimpan'; limitsOk = true; } else { limitsMsg = 'Gagal'; limitsOk = false; }
 	}
 
 	async function activateUser() {
 		actMsg = '';
 		const res = await fetch('/api/admin/activate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: actEmail, planName: actPlan }) });
 		const d = await res.json();
-		actMsg = res.ok ? `✅ Aktif s/d ${new Date(d.expires_at).toLocaleDateString('id-ID')}` : (d.error || 'Gagal');
+		actOk = res.ok;
+		actMsg = res.ok ? `Aktif s/d ${new Date(d.expires_at).toLocaleDateString('id-ID')}` : (d.error || 'Gagal');
 	}
 </script>
 
 <div class="min-h-dvh bg-[var(--bg-base)]">
 	<PageHeader title="Admin · Paperio">
 		{#snippet actions()}
-			<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>
+			<a href="/" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>
 		{/snippet}
 	</PageHeader>
 
@@ -88,7 +94,12 @@
 						<Button variant="ghost" size="sm" onclick={() => delConfig(c.id)}>Hapus</Button>
 					</Card>
 				{/each}
-				{#if testMsg}<p class="text-sm">{testMsg}</p>{/if}
+				{#if testMsg}
+					<p class="text-sm flex items-center gap-1.5">
+						{#if testOk === true}<CheckCircleIcon size={15} class="shrink-0 text-[var(--tag-green-text)]" />{:else if testOk === false}<XCircleIcon size={15} class="shrink-0 text-[var(--fg-error)]" />{/if}
+						{testMsg}
+					</p>
+				{/if}
 
 				<Card rounded="lg" padding="sm" class="space-y-3">
 					<h3 class="text-sm font-medium">Tambah AI Config</h3>
@@ -114,7 +125,7 @@
 				<label class="block text-sm">Max token / request<Input type="number" bind:value={limits.max_tokens_per_req} class="mt-1" /></label>
 				<label class="block text-sm">Warn threshold (%)<Input type="number" bind:value={limits.warn_threshold_pct} class="mt-1" /></label>
 				<Button onclick={saveLimits}>Simpan</Button>
-				{#if limitsMsg}<span class="text-sm ml-2">{limitsMsg}</span>{/if}
+				{#if limitsMsg}<span class="text-sm ml-2 inline-flex items-center gap-1">{#if limitsOk}<CheckIcon size={14} class="shrink-0 text-[var(--tag-green-text)]" />{/if}{limitsMsg}</span>{/if}
 			</Card>
 		{:else if tab === 'monitor' && stats}
 			<div class="space-y-5">
@@ -150,7 +161,12 @@
 					<option>Free Trial</option><option>Basic</option><option>Pro</option>
 				</Select>
 				<Button onclick={activateUser}>Aktifkan</Button>
-				{#if actMsg}<p class="text-sm">{actMsg}</p>{/if}
+				{#if actMsg}
+					<p class="text-sm flex items-center gap-1.5">
+						{#if actOk === true}<CheckCircleIcon size={15} class="shrink-0 text-[var(--tag-green-text)]" />{:else if actOk === false}<XCircleIcon size={15} class="shrink-0 text-[var(--fg-error)]" />{/if}
+						{actMsg}
+					</p>
+				{/if}
 			</Card>
 		{/if}
 	</div>

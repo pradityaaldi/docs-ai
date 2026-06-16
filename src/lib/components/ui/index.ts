@@ -12,3 +12,4 @@ export { default as StatCard } from './StatCard.svelte';
 export { default as Tabs } from './Tabs.svelte';
 export { default as Textarea } from './Textarea.svelte';
 export { default as TreeItem } from './TreeItem.svelte';
+export * from './icons';

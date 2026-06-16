@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../../app.css';
 	import { goto } from '$app/navigation';
-	import { Alert, Button, Card, PageHeader } from '$lib/components/ui';
+	import { Alert, Button, Card, PageHeader, ArrowLeftIcon, CheckIcon, CheckCircleIcon } from '$lib/components/ui';
 	let { data } = $props();
 
 	let loadingId = $state('');
@@ -60,16 +60,19 @@
 <div class="min-h-dvh bg-[var(--bg-base)]">
 	<PageHeader title="Pilih Paket" subtitle="Berlangganan untuk mulai generate dokumen.">
 		{#snippet actions()}
-			{#if data.active}<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>{/if}
+			{#if data.active}<a href="/" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>{/if}
 		{/snippet}
 	</PageHeader>
 
 	<div class="px-6 py-6 max-w-4xl mx-auto">
 		{#if data.active}
-			<Card rounded="lg" padding="none" class="mb-6 px-4 py-3 text-sm">
-				✅ Langganan aktif: <b>{data.active.planName}</b>
-				{#if data.active.expiresAt}· berlaku s/d {new Date(data.active.expiresAt).toLocaleDateString('id-ID')}{/if}
-				· terpakai {data.active.quotaUsed}×
+			<Card rounded="lg" padding="none" class="mb-6 px-4 py-3 text-sm flex items-center gap-2">
+				<CheckCircleIcon size={16} class="shrink-0 text-[var(--tag-green-text)]" />
+				<span>
+					Langganan aktif: <b>{data.active.planName}</b>
+					{#if data.active.expiresAt}· berlaku s/d {new Date(data.active.expiresAt).toLocaleDateString('id-ID')}{/if}
+					· terpakai {data.active.quotaUsed}×
+				</span>
 			</Card>
 		{:else}
 			<Alert class="mb-6">Kamu belum punya langganan aktif. Pilih paket di bawah untuk mulai.</Alert>
@@ -85,9 +88,9 @@
 					<div class="text-2xl font-bold mt-2">{p.price === 0 ? 'Gratis' : rupiah(p.price)}</div>
 					<div class="text-xs text-[var(--fg-muted)] mb-4">/ {p.durationDays} hari</div>
 					<ul class="text-sm text-[var(--fg-subtle)] space-y-1 flex-1">
-						<li>✓ {p.quota} generate dokumen</li>
-						<li>✓ {p.maxProjects} project</li>
-						<li>✓ Export DOCX</li>
+						<li class="flex items-center gap-1.5"><CheckIcon size={14} class="shrink-0 text-[var(--tag-green-text)]" />{p.quota} generate dokumen</li>
+						<li class="flex items-center gap-1.5"><CheckIcon size={14} class="shrink-0 text-[var(--tag-green-text)]" />{p.maxProjects} project</li>
+						<li class="flex items-center gap-1.5"><CheckIcon size={14} class="shrink-0 text-[var(--tag-green-text)]" />Export DOCX</li>
 					</ul>
 					<Button full class="mt-4" onclick={() => checkout(p.id)} loading={loadingId === p.id}>
 						{loadingId === p.id ? 'Memproses…' : p.price === 0 ? 'Pilih' : 'Bayar'}

@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import AuthShell from '$lib/components/auth/AuthShell.svelte';
-	import { Alert, Button, Input } from '$lib/components/ui';
+	import { Alert, Button, Input, CheckCircleIcon } from '$lib/components/ui';
 
 	const token = page.url.searchParams.get('token') || '';
 	let password = $state('');
@@ -36,7 +36,7 @@
 <AuthShell>
 	{#if done}
 		<div class="text-center">
-			<div class="text-4xl mb-3">✅</div>
+			<div class="flex justify-center mb-3 text-[var(--tag-green-text)]"><CheckCircleIcon size={40} /></div>
 			<h1 class="text-lg font-semibold mb-1">Password diganti</h1>
 			<p class="text-sm text-[var(--fg-muted)]">Mengarahkan ke login…</p>
 		</div>

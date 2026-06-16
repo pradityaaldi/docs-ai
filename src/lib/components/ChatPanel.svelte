@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
 	import { sendMessage, sendProjectMessage, stopGeneration, clearMessages } from '$lib/actions';
+	import { CheckIcon, CloseIcon, CircleIcon } from '$lib/components/ui';
 
 	let scrollContainer = $state<HTMLDivElement>();
 	let autoScroll = $state(true);
@@ -264,7 +265,7 @@
 								<div class="mt-2 space-y-1">
 									{#each app.status.sections as section}
 										<div class="flex items-center gap-2 text-[11px] {section === app.status.activeSection ? 'text-[var(--fg-interactive)] font-medium' : 'text-[var(--tag-green-text)]'}">
-											<span>{section === app.status.activeSection ? '○' : '✓'}</span>
+											{#if section === app.status.activeSection}<CircleIcon size={11} class="shrink-0" />{:else}<CheckIcon size={11} class="shrink-0" />{/if}
 											<span class="truncate">{section}</span>
 										</div>
 									{/each}
@@ -282,7 +283,7 @@
 									</div>
 									{#each app.status.toolResults as tr}
 										<div class="flex items-center gap-2 text-[11px] {tr.success ? 'text-[var(--tag-green-text)]' : 'text-[var(--fg-error)]'}">
-											<span>{tr.success ? '✓' : '✗'}</span>
+											{#if tr.success}<CheckIcon size={11} class="shrink-0" />{:else}<CloseIcon size={11} class="shrink-0" />{/if}
 											<span class="truncate">{tr.title}</span>
 											{#if tr.error}
 												<span class="text-[var(--fg-muted)] text-[10px]">- {tr.error}</span>

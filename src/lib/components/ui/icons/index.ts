@@ -1,0 +1,12 @@
+export { default as IconBase } from './IconBase.svelte';
+export { default as ArrowLeftIcon } from './ArrowLeft.svelte';
+export { default as CheckIcon } from './Check.svelte';
+export { default as CloseIcon } from './Close.svelte';
+export { default as CheckCircleIcon } from './CheckCircle.svelte';
+export { default as XCircleIcon } from './XCircle.svelte';
+export { default as WarningIcon } from './Warning.svelte';
+export { default as MailIcon } from './Mail.svelte';
+export { default as CircleIcon } from './Circle.svelte';
+export { default as GraduationCapIcon } from './GraduationCap.svelte';
+export { default as FileTextIcon } from './FileText.svelte';
+export { default as FilesIcon } from './Files.svelte';

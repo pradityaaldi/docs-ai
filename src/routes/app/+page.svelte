@@ -1,8 +1,9 @@
 <script lang="ts">
 	import '../../app.css';
 	import { app } from '$lib/stores/app.svelte';
-	import { createProjectNamed, deleteProject, logout } from '$lib/actions';
+	import { createProjectNamed, deleteProject } from '$lib/actions';
 	import { goto } from '$app/navigation';
+	import AppShell from '$lib/components/AppShell.svelte';
 	import { Button, Card, Input, Field } from '$lib/components/ui';
 	import { FileTextIcon, FilesIcon, CloseIcon } from '$lib/components/ui/icons';
 
@@ -55,30 +56,8 @@
 
 <svelte:head><title>Project — Paperio</title></svelte:head>
 
-<div class="min-h-dvh flex flex-col bg-[var(--bg-base)] text-[var(--fg-base)]">
-	<!-- Navbar -->
-	<header class="border-b border-[var(--border-base)] bg-[var(--bg-subtle)]">
-		<div class="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
-			<a href="/app" class="flex items-center gap-2 font-semibold">
-				<FileTextIcon size={20} />
-				<span>Paperio</span>
-			</a>
-			<nav class="flex items-center gap-3">
-				<a href="/templates" class="text-sm text-[var(--fg-interactive)] hover:underline">Galeri Template</a>
-				{#if app.currentUser?.role === 'admin'}
-					<a href="/admin" class="text-sm text-[var(--fg-interactive)] hover:underline">Admin</a>
-				{/if}
-				<div class="hidden text-right sm:block">
-					<div class="text-xs font-medium leading-tight">{app.currentUser?.name || app.currentUser?.email}</div>
-					<div class="text-[10px] text-[var(--fg-muted)] leading-tight">{app.currentUser?.email}</div>
-				</div>
-				<Button variant="neutral" size="sm" onclick={logout}>Keluar</Button>
-			</nav>
-		</div>
-	</header>
-
-	<!-- Content -->
-	<main class="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+<AppShell>
+	<div class="mx-auto w-full max-w-5xl px-6 py-10">
 		<div class="mb-6 flex items-center justify-between">
 			<div>
 				<h1 class="text-2xl font-bold">Project</h1>
@@ -127,16 +106,8 @@
 				{/each}
 			</div>
 		{/if}
-	</main>
-
-	<!-- Footer -->
-	<footer class="border-t border-[var(--border-base)] bg-[var(--bg-subtle)]">
-		<div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-5 text-xs text-[var(--fg-muted)]">
-			<span>Paperio — Generator Dokumen AI</span>
-			<a href="/" class="hover:underline">Beranda</a>
-		</div>
-	</footer>
-</div>
+	</div>
+</AppShell>
 
 <!-- Create modal -->
 {#if modalOpen}

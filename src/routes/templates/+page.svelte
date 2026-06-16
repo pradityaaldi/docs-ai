@@ -1,8 +1,11 @@
 <script lang="ts">
 	import '../../app.css';
-	import { PageHeader, Tabs, ArrowLeftIcon, GraduationCapIcon, FileTextIcon, MailIcon, FilesIcon } from '$lib/components/ui';
+	import { app } from '$lib/stores/app.svelte';
+	import AppShell from '$lib/components/AppShell.svelte';
+	import { Tabs, GraduationCapIcon, FileTextIcon, MailIcon, FilesIcon } from '$lib/components/ui';
 	import type { Component } from 'svelte';
 	let { data } = $props();
+	app.currentUser = data.user ?? null;
 
 	const CATS = [
 		{ key: 'all', label: 'Semua' },
@@ -24,14 +27,15 @@
 	const catIcon: Record<string, Component> = { skripsi: GraduationCapIcon, makalah: FileTextIcon, surat: MailIcon };
 </script>
 
-<div class="min-h-dvh bg-[var(--bg-base)]">
-	<PageHeader title="Galeri Template" subtitle="Pilih template siap pakai, isi form, AI bikin dokumennya.">
-		{#snippet actions()}
-			<a href="/app" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>
-		{/snippet}
-	</PageHeader>
+<svelte:head><title>Galeri Template — Paperio</title></svelte:head>
 
-	<div class="px-6 py-4">
+<AppShell>
+	<div class="mx-auto max-w-5xl px-6 py-10">
+		<div class="mb-6">
+			<h1 class="text-2xl font-bold">Galeri Template</h1>
+			<p class="text-sm text-[var(--fg-muted)]">Pilih template siap pakai, isi form, AI bikin dokumennya.</p>
+		</div>
+
 		<Tabs tabs={CATS} bind:active={activeCat} class="mb-5" />
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -60,4 +64,4 @@
 			<p class="text-sm text-[var(--fg-muted)] text-center py-12">Belum ada template di kategori ini.</p>
 		{/if}
 	</div>
-</div>
+</AppShell>

@@ -10,3 +10,5 @@ export { default as CircleIcon } from './Circle.svelte';
 export { default as GraduationCapIcon } from './GraduationCap.svelte';
 export { default as FileTextIcon } from './FileText.svelte';
 export { default as FilesIcon } from './Files.svelte';
+export { default as UserIcon } from './User.svelte';
+export { default as LogOutIcon } from './LogOut.svelte';

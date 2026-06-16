@@ -11,6 +11,11 @@ export interface Connector {
 export interface Project {
 	id: string;
 	name: string;
+	user_id?: string | null;
+	template_id?: string | null;
+	input?: Record<string, string> | null;
+	bahasa?: string;
+	status?: 'belum mulai' | 'generated' | 'siap export';
 	created_at: string;
 	updated_at: string;
 }
@@ -95,15 +100,25 @@ export interface ChatStatus {
 	toolResults: ToolResultEntry[];
 }
 
+export interface CurrentUser {
+	id: string;
+	email: string;
+	name: string;
+	role: 'user' | 'admin';
+	emailVerified?: boolean;
+}
+
 export const app = $state({
 	connectors: [] as Connector[],
+	currentUser: null as CurrentUser | null,
+	aiReady: false,
+	aiProvider: '' as string,
 	documents: [] as Document[],
 	projects: [] as Project[],
 	currentProject: null as Project | null,
 	projectTree: [] as TreeNode[],
 	rootDocuments: [] as DocEntry[],
 	globalConversation: null as Document | null,
-	activeConnector: null as Connector | null,
 	currentDoc: null as Document | null,
 	messages: [] as Message[],
 	sidebarView: 'projects' as 'projects' | 'project-detail',
@@ -132,7 +147,6 @@ export const app = $state({
 		toolCallCurrent: '',
 		toolResults: [] as ToolResultEntry[],
 	} as ChatStatus,
-	showSettings: false,
 	previewTab: 'preview' as 'preview' | 'code',
 	zoom: -1,
 	previewContainer: null as HTMLElement | null,

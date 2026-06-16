@@ -1,33 +1,30 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import getDb from '$lib/server/db';
+import { db, documents } from '$lib/server/db';
+import { eq } from 'drizzle-orm';
+import { snakeify } from '$lib/server/serialize';
 
-// GET /api/documents/[id] - get document
 export const GET: RequestHandler = async ({ params }) => {
-	const db = getDb();
-	const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(params.id);
+	const [doc] = await db.select().from(documents).where(eq(documents.id, params.id));
 	if (!doc) return json({ error: 'Not found' }, { status: 404 });
-	return json(doc);
+	return json(snakeify(doc));
 };
 
-// PUT /api/documents/[id] - update document
 export const PUT: RequestHandler = async ({ params, request }) => {
-	const db = getDb();
 	const data = await request.json();
-	const { title, content, connector_id } = data;
+	const { title, content } = data;
 
-	db.prepare(
-		`UPDATE documents SET title=?, content=?, connector_id=?, updated_at=datetime('now') WHERE id=?`
-	).run(title, content, connector_id || null, params.id);
-
-	const updated = db.prepare('SELECT * FROM documents WHERE id = ?').get(params.id);
-	return json(updated);
+	const [updated] = await db
+		.update(documents)
+		.set({ title, content, updatedAt: new Date() })
+		.where(eq(documents.id, params.id))
+		.returning();
+	if (!updated) return json({ error: 'Not found' }, { status: 404 });
+	return json(snakeify(updated));
 };
 
-// DELETE /api/documents/[id] - delete document
 export const DELETE: RequestHandler = async ({ params }) => {
-	const db = getDb();
-	db.prepare('DELETE FROM messages WHERE document_id = ?').run(params.id);
-	db.prepare('DELETE FROM documents WHERE id = ?').run(params.id);
+	// messages cascade with the document
+	await db.delete(documents).where(eq(documents.id, params.id));
 	return json({ success: true });
 };

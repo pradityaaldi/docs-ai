@@ -1,5 +1,7 @@
 import { streamAIWithTools, type ToolCall } from '$lib/server/ai';
-import getDb from '$lib/server/db';
+import { getActiveAIConnector } from '$lib/server/ai-config';
+import { db, projects, documents, folders, messages } from '$lib/server/db';
+import { eq, and, isNull, asc } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 
 const DOCX_JSON_SCHEMA = {
@@ -76,9 +78,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	const db = getDb();
-
-	const connector = db.prepare('SELECT * FROM connectors WHERE is_active = 1').get() as any;
+	const connector = await getActiveAIConnector();
 	if (!connector) {
 		return new Response(JSON.stringify({ error: 'No active AI connector' }), {
 			status: 400,
@@ -86,7 +86,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(project_id) as any;
+	const [project] = await db.select().from(projects).where(eq(projects.id, project_id));
 	if (!project) {
 		return new Response(JSON.stringify({ error: 'Project not found' }), {
 			status: 404,
@@ -95,31 +95,37 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	// Find or create the global conversation document (not tied to any project)
-	let convDoc = db.prepare(
-		"SELECT * FROM documents WHERE title = 'Conversation' AND project_id IS NULL AND folder_id IS NULL"
-	).get() as any;
+	let [convDoc] = await db
+		.select()
+		.from(documents)
+		.where(
+			and(
+				eq(documents.title, 'Conversation'),
+				isNull(documents.projectId),
+				isNull(documents.folderId)
+			)
+		);
 
 	if (!convDoc) {
-		const convId = crypto.randomUUID();
-		db.prepare(
-			`INSERT INTO documents (id, title, content, connector_id, project_id, folder_id) VALUES (?, 'Conversation', '', ?, NULL, NULL)`
-		).run(convId, connector.id);
-		convDoc = { id: convId, title: 'Conversation', content: '', connector_id: connector.id, project_id: null, folder_id: null };
+		[convDoc] = await db
+			.insert(documents)
+			.values({ title: 'Conversation', content: '' })
+			.returning();
 	}
 
 	const document_id = convDoc.id;
 
 	// Save user message
-	const userMsgId = crypto.randomUUID();
-	db.prepare(`INSERT INTO messages (id, document_id, role, content) VALUES (?, ?, 'user', ?)`)
-		.run(userMsgId, document_id, message);
+	await db.insert(messages).values({ documentId: document_id, role: 'user', content: message });
 
 	// Load folders for tool context
-	const folders = db.prepare('SELECT id, name, parent_id FROM folders WHERE project_id = ?')
-		.all(project_id) as { id: string; name: string; parent_id: string | null }[];
+	const folderRows = await db
+		.select({ id: folders.id, name: folders.name, parent_id: folders.parentId })
+		.from(folders)
+		.where(eq(folders.projectId, project_id));
 
-	const folderList = folders.length > 0
-		? `Available folders:\n${folders.map(f => `  - "${f.name}" (id: ${f.id}${f.parent_id ? `, parent: ${f.parent_id}` : ', root-level'})`).join('\n')}`
+	const folderList = folderRows.length > 0
+		? `Available folders:\n${folderRows.map(f => `  - "${f.name}" (id: ${f.id}${f.parent_id ? `, parent: ${f.parent_id}` : ', root-level'})`).join('\n')}`
 		: 'No folders exist yet. You can specify a folder_name to create a new folder, or omit folder_id for root-level.';
 
 	const systemPrompt = `You are a document generator that operates on projects. You have access to tools to create, update, and delete documents.
@@ -281,24 +287,27 @@ IMPORTANT RULES:
 										return { result: JSON.stringify({ success: false, error: 'Content must have meta and content fields' }) };
 									}
 
-									const docId = crypto.randomUUID();
 									const folderId = args.folder_id || null;
 
-									db.prepare(
-										`INSERT INTO documents (id, title, content, connector_id, project_id, folder_id) VALUES (?, ?, ?, ?, ?, ?)`
-									).run(docId, title, contentJson, connector.id, project_id, folderId);
-									db.prepare("UPDATE projects SET updated_at=datetime('now') WHERE id=?").run(project_id);
+									const [created] = await db
+										.insert(documents)
+										.values({ title, content: contentJson, projectId: project_id, folderId })
+										.returning({ id: documents.id });
+									await db.update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, project_id));
 
-									return { result: JSON.stringify({ success: true, document_id: docId, title }) };
+									return { result: JSON.stringify({ success: true, document_id: created.id, title }) };
 								}
 								case 'update_document': {
 									const docId = args.document_id;
 									if (!docId) return { result: JSON.stringify({ success: false, error: 'Missing document_id' }) };
 
-									const existing = db.prepare('SELECT * FROM documents WHERE id = ? AND project_id = ?').get(docId, project_id) as any;
+									const [existing] = await db
+										.select()
+										.from(documents)
+										.where(and(eq(documents.id, docId), eq(documents.projectId, project_id)));
 									if (!existing) return { result: JSON.stringify({ success: false, error: 'Document not found in this project' }) };
 
-									const updates: Record<string, unknown> = {};
+									const updates: { title?: string; content?: string } = {};
 									if (args.title) updates.title = args.title;
 									if (args.content_json) {
 										let cj = args.content_json;
@@ -317,11 +326,11 @@ IMPORTANT RULES:
 										return { result: JSON.stringify({ success: false, error: 'No updates specified' }) };
 									}
 
-									const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-									const values = Object.values(updates);
-									db.prepare(`UPDATE documents SET ${setClauses}, updated_at = datetime('now') WHERE id = ?`)
-										.run(...values, docId);
-									db.prepare("UPDATE projects SET updated_at=datetime('now') WHERE id=?").run(project_id);
+									await db
+										.update(documents)
+										.set({ ...updates, updatedAt: new Date() })
+										.where(eq(documents.id, docId));
+									await db.update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, project_id));
 
 									return { result: JSON.stringify({ success: true, document_id: docId, title: args.title || existing.title }) };
 								}
@@ -329,11 +338,14 @@ IMPORTANT RULES:
 									const docId = args.document_id;
 									if (!docId) return { result: JSON.stringify({ success: false, error: 'Missing document_id' }) };
 
-									const existing = db.prepare('SELECT * FROM documents WHERE id = ? AND project_id = ?').get(docId, project_id) as any;
+									const [existing] = await db
+										.select()
+										.from(documents)
+										.where(and(eq(documents.id, docId), eq(documents.projectId, project_id)));
 									if (!existing) return { result: JSON.stringify({ success: false, error: 'Document not found in this project' }) };
 
-									db.prepare('DELETE FROM documents WHERE id = ?').run(docId);
-									db.prepare("UPDATE projects SET updated_at=datetime('now') WHERE id=?").run(project_id);
+									await db.delete(documents).where(eq(documents.id, docId));
+									await db.update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, project_id));
 
 									return { result: JSON.stringify({ success: true, document_id: docId, title: existing.title }) };
 								}
@@ -364,10 +376,8 @@ IMPORTANT RULES:
 						.replace(/__TOOL__:[^\n]*\n/g, '')
 						.trim();
 					if (cleanReply && !signal.aborted) {
-						const assistantMsgId = crypto.randomUUID();
-						db.prepare(`INSERT INTO messages (id, document_id, role, content) VALUES (?, ?, 'assistant', ?)`)
-							.run(assistantMsgId, document_id, cleanReply);
-						db.prepare(`UPDATE documents SET updated_at = datetime('now') WHERE id = ?`).run(document_id);
+						await db.insert(messages).values({ documentId: document_id, role: 'assistant', content: cleanReply });
+						await db.update(documents).set({ updatedAt: new Date() }).where(eq(documents.id, document_id));
 					}
 				} catch (e: any) {
 					console.error(`[TOOLS] error +${Date.now() - t0}ms`, e?.message || e);

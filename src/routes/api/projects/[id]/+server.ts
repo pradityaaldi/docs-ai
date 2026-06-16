@@ -1,35 +1,53 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import getDb from '$lib/server/db';
+import { db, projects, documents } from '$lib/server/db';
+import { eq } from 'drizzle-orm';
+import { snakeify } from '$lib/server/serialize';
 
-export const GET: RequestHandler = async ({ params }) => {
-	const db = getDb();
-	const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(params.id);
+// Owned projects are only accessible by their owner; null-owned (legacy) stay open.
+function denied(project: { userId: string | null }, userId?: string) {
+	return project.userId && project.userId !== userId;
+}
+
+export const GET: RequestHandler = async ({ params, locals }) => {
+	const [project] = await db.select().from(projects).where(eq(projects.id, params.id));
 	if (!project) return json({ error: 'Not found' }, { status: 404 });
-	return json(project);
+	if (denied(project, locals.user?.id)) return json({ error: 'Forbidden' }, { status: 403 });
+	return json(snakeify(project));
 };
 
-export const PUT: RequestHandler = async ({ params, request }) => {
-	const db = getDb();
-	const data = await request.json();
-	const { name } = data;
+const STATUSES = ['belum mulai', 'generated', 'siap export'] as const;
 
-	if (!name || !name.trim()) {
-		return json({ error: 'Name is required' }, { status: 400 });
+export const PUT: RequestHandler = async ({ params, request, locals }) => {
+	const data = await request.json();
+	const { name, status } = data;
+
+	const [project] = await db.select().from(projects).where(eq(projects.id, params.id));
+	if (!project) return json({ error: 'Not found' }, { status: 404 });
+	if (denied(project, locals.user?.id)) return json({ error: 'Forbidden' }, { status: 403 });
+
+	const patch: { name?: string; status?: (typeof STATUSES)[number]; updatedAt: Date } = { updatedAt: new Date() };
+	if (name !== undefined) {
+		if (!name.trim()) return json({ error: 'Name is required' }, { status: 400 });
+		patch.name = name.trim();
+	}
+	if (status !== undefined) {
+		if (!STATUSES.includes(status)) return json({ error: 'Invalid status' }, { status: 400 });
+		patch.status = status;
 	}
 
-	db.prepare("UPDATE projects SET name=?, updated_at=datetime('now') WHERE id=?").run(name.trim(), params.id);
-
-	const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(params.id);
-	if (!updated) return json({ error: 'Not found' }, { status: 404 });
-	return json(updated);
+	const [updated] = await db.update(projects).set(patch).where(eq(projects.id, params.id)).returning();
+	return json(snakeify(updated));
 };
 
-export const DELETE: RequestHandler = async ({ params }) => {
-	const db = getDb();
-	db.prepare('DELETE FROM messages WHERE document_id IN (SELECT id FROM documents WHERE project_id = ?)').run(params.id);
-	db.prepare('DELETE FROM documents WHERE project_id = ?').run(params.id);
-	db.prepare('DELETE FROM folders WHERE project_id = ?').run(params.id);
-	db.prepare('DELETE FROM projects WHERE id = ?').run(params.id);
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+	const [project] = await db.select().from(projects).where(eq(projects.id, params.id));
+	if (!project) return json({ success: true });
+	if (denied(project, locals.user?.id)) return json({ error: 'Forbidden' }, { status: 403 });
+
+	// documents.project_id is SET NULL on cascade, so delete docs explicitly
+	// (their messages cascade). Folders cascade with the project.
+	await db.delete(documents).where(eq(documents.projectId, params.id));
+	await db.delete(projects).where(eq(projects.id, params.id));
 	return json({ success: true });
 };

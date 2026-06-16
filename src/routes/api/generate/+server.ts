@@ -1,5 +1,7 @@
 import { streamAIResponse } from '$lib/server/ai';
-import getDb from '$lib/server/db';
+import { getActiveAIConnector } from '$lib/server/ai-config';
+import { db, documents, messages } from '$lib/server/db';
+import { eq, asc } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 
 function stripThinkingBlocks(text: string): string {
@@ -26,9 +28,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	const db = getDb();
-
-	const connector = db.prepare('SELECT * FROM connectors WHERE is_active = 1').get() as any;
+	const connector = await getActiveAIConnector();
 	if (!connector) {
 		return new Response(JSON.stringify({ error: 'No active AI connector' }), {
 			status: 400,
@@ -36,7 +36,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	const document = db.prepare('SELECT * FROM documents WHERE id = ?').get(document_id) as any;
+	const [document] = await db.select().from(documents).where(eq(documents.id, document_id));
 	if (!document) {
 		return new Response(JSON.stringify({ error: 'Document not found' }), {
 			status: 404,
@@ -44,8 +44,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	const history = db.prepare('SELECT role, content FROM messages WHERE document_id = ? ORDER BY created_at ASC')
-		.all(document_id) as { role: string; content: string }[];
+	const history = await db
+		.select({ role: messages.role, content: messages.content })
+		.from(messages)
+		.where(eq(messages.documentId, document_id))
+		.orderBy(asc(messages.createdAt));
 
 	const systemPrompt = `You are a professional document generator. Based on the conversation history, generate the document as DOCX JSON — a structured JSON format that maps directly to Word document elements.
 
@@ -136,14 +139,12 @@ Conversation history is provided below. Generate the complete document based on 
 		if (!force && (fullResponse.length - lastSavedLen < 200 || now - lastSaveAt < 2000)) return;
 		const cleaned = stripThinkingBlocks(fullResponse);
 		if (!cleaned) return;
-		try {
-			db.prepare(`UPDATE documents SET content = ?, updated_at = datetime('now') WHERE id = ?`)
-				.run(cleaned, document_id);
-			lastSavedLen = fullResponse.length;
-			lastSaveAt = now;
-		} catch (e) {
-			console.error('[GEN] save error', e);
-		}
+		lastSavedLen = fullResponse.length;
+		lastSaveAt = now;
+		db.update(documents)
+			.set({ content: cleaned, updatedAt: new Date() })
+			.where(eq(documents.id, document_id))
+			.catch((e) => console.error('[GEN] save error', e));
 	};
 
 	const wireStream = new ReadableStream<Uint8Array>({

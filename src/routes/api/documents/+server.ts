@@ -1,39 +1,44 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import getDb from '$lib/server/db';
+import { db, projects, documents } from '$lib/server/db';
+import { eq, desc } from 'drizzle-orm';
+import { snakeify } from '$lib/server/serialize';
 
-// GET /api/documents - list all documents (optionally filter by project_id or folder_id)
+// GET /api/documents - list documents (optional filter by project_id or folder_id)
 export const GET: RequestHandler = async ({ url }) => {
-	const db = getDb();
 	const projectId = url.searchParams.get('project_id');
 	const folderId = url.searchParams.get('folder_id');
 
-	let documents;
+	let rows;
 	if (folderId) {
-		documents = db.prepare('SELECT * FROM documents WHERE folder_id = ? ORDER BY updated_at DESC').all(folderId);
+		rows = await db.select().from(documents).where(eq(documents.folderId, folderId)).orderBy(desc(documents.updatedAt));
 	} else if (projectId) {
-		documents = db.prepare('SELECT * FROM documents WHERE project_id = ? ORDER BY updated_at DESC').all(projectId);
+		rows = await db.select().from(documents).where(eq(documents.projectId, projectId)).orderBy(desc(documents.updatedAt));
 	} else {
-		documents = db.prepare('SELECT * FROM documents ORDER BY updated_at DESC').all();
+		rows = await db.select().from(documents).orderBy(desc(documents.updatedAt));
 	}
-	return json(documents);
+	return json(snakeify(rows));
 };
 
 // POST /api/documents - create document
-export const POST: RequestHandler = async ({ request }) => {
-	const db = getDb();
+export const POST: RequestHandler = async ({ request, locals }) => {
 	const data = await request.json();
-	const { title, content, connector_id, project_id, folder_id } = data;
+	const { title, content, project_id, folder_id } = data;
 
-	const id = crypto.randomUUID();
-	db.prepare(
-		`INSERT INTO documents (id, title, content, connector_id, project_id, folder_id) VALUES (?, ?, ?, ?, ?, ?)`
-	).run(id, title || 'Untitled Document', content || '', connector_id || null, project_id || null, folder_id || null);
+	const [doc] = await db
+		.insert(documents)
+		.values({
+			title: title || 'Untitled Document',
+			content: content || '',
+			userId: locals.user?.id ?? null,
+			projectId: project_id || null,
+			folderId: folder_id || null
+		})
+		.returning();
 
 	if (project_id) {
-		db.prepare("UPDATE projects SET updated_at=datetime('now') WHERE id=?").run(project_id);
+		await db.update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, project_id));
 	}
 
-	const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(id);
-	return json(doc, { status: 201 });
+	return json(snakeify(doc), { status: 201 });
 };

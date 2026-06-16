@@ -1,36 +1,33 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import getDb from '$lib/server/db';
+import { db, documents, messages } from '$lib/server/db';
+import { eq, asc } from 'drizzle-orm';
+import { snakeify } from '$lib/server/serialize';
 
-// GET /api/documents/[id]/messages - get messages for document
 export const GET: RequestHandler = async ({ params }) => {
-	const db = getDb();
-	const messages = db.prepare('SELECT * FROM messages WHERE document_id = ? ORDER BY created_at ASC').all(params.id);
-	return json(messages);
+	const rows = await db
+		.select()
+		.from(messages)
+		.where(eq(messages.documentId, params.id))
+		.orderBy(asc(messages.createdAt));
+	return json(snakeify(rows));
 };
 
-// POST /api/documents/[id]/messages - add message to document
 export const POST: RequestHandler = async ({ params, request }) => {
-	const db = getDb();
 	const data = await request.json();
 	const { role, content } = data;
-
 	if (!role || !content) {
 		return json({ error: 'Missing role or content' }, { status: 400 });
 	}
-
-	const id = crypto.randomUUID();
-	db.prepare(
-		`INSERT INTO messages (id, document_id, role, content) VALUES (?, ?, ?, ?)`
-	).run(id, params.id, role, content);
-
-	return json({ id, document_id: params.id, role, content }, { status: 201 });
+	const [msg] = await db
+		.insert(messages)
+		.values({ documentId: params.id, role, content })
+		.returning();
+	return json(snakeify(msg), { status: 201 });
 };
 
-// DELETE /api/documents/[id]/messages - clear all messages for document
 export const DELETE: RequestHandler = async ({ params }) => {
-	const db = getDb();
-	db.prepare('DELETE FROM messages WHERE document_id = ?').run(params.id);
-	db.prepare("UPDATE documents SET content = '', updated_at = datetime('now') WHERE id = ?").run(params.id);
+	await db.delete(messages).where(eq(messages.documentId, params.id));
+	await db.update(documents).set({ content: '', updatedAt: new Date() }).where(eq(documents.id, params.id));
 	return json({ success: true });
 };

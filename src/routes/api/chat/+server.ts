@@ -1,5 +1,7 @@
 import { streamAIResponse } from '$lib/server/ai';
-import getDb from '$lib/server/db';
+import { getActiveAIConnector } from '$lib/server/ai-config';
+import { db, documents, messages } from '$lib/server/db';
+import { eq, asc } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 
 function plainText(text: string): string {
@@ -18,9 +20,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	const db = getDb();
-
-	const connector = db.prepare('SELECT * FROM connectors WHERE is_active = 1').get() as any;
+	const connector = await getActiveAIConnector();
 	if (!connector) {
 		return new Response(JSON.stringify({ error: 'No active AI connector. Please configure one in settings.' }), {
 			status: 400,
@@ -28,7 +28,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	const document = db.prepare('SELECT * FROM documents WHERE id = ?').get(document_id) as any;
+	const [document] = await db.select().from(documents).where(eq(documents.id, document_id));
 	if (!document) {
 		return new Response(JSON.stringify({ error: 'Document not found' }), {
 			status: 404,
@@ -36,12 +36,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	const userMsgId = crypto.randomUUID();
-	db.prepare(`INSERT INTO messages (id, document_id, role, content) VALUES (?, ?, 'user', ?)`)
-		.run(userMsgId, document_id, message);
+	await db.insert(messages).values({ documentId: document_id, role: 'user', content: message });
 
-	const history = db.prepare('SELECT role, content FROM messages WHERE document_id = ? ORDER BY created_at ASC')
-		.all(document_id) as { role: string; content: string }[];
+	const history = await db
+		.select({ role: messages.role, content: messages.content })
+		.from(messages)
+		.where(eq(messages.documentId, document_id))
+		.orderBy(asc(messages.createdAt));
 
 	const systemPrompt = `You are a helpful document writing assistant who ONLY acknowledges requests. You are a conversation partner — NOT the document generator. A separate automated system handles all document creation.
 
@@ -114,11 +115,8 @@ CRITICAL RULES:
 					const cleaned = plainText(fullResponse).trim();
 					console.log(`[CHAT] flush rawLen=${fullResponse.length} cleanLen=${cleaned.length} aborted=${signal.aborted} elapsed=${Date.now() - t0}ms`);
 					if (cleaned && !signal.aborted) {
-						const assistantMsgId = crypto.randomUUID();
-						db.prepare(`INSERT INTO messages (id, document_id, role, content) VALUES (?, ?, 'assistant', ?)`)
-							.run(assistantMsgId, document_id, cleaned);
-						db.prepare(`UPDATE documents SET updated_at = datetime('now') WHERE id = ?`)
-							.run(document_id);
+						await db.insert(messages).values({ documentId: document_id, role: 'assistant', content: cleaned });
+						await db.update(documents).set({ updatedAt: new Date() }).where(eq(documents.id, document_id));
 					}
 				} catch (e: any) {
 					console.error(`[CHAT] upstream error +${Date.now() - t0}ms`, e?.message || e);

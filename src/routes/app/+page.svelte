@@ -1,36 +1,176 @@
 <script lang="ts">
 	import '../../app.css';
-	import { loadAIStatus, loadProjects, enterProject } from '$lib/actions';
 	import { app } from '$lib/stores/app.svelte';
-	import { page } from '$app/state';
-	import Sidebar from '$lib/components/Sidebar.svelte';
-	import ChatPanel from '$lib/components/ChatPanel.svelte';
-	import DocumentPreview from '$lib/components/DocumentPreview.svelte';
+	import { createProjectNamed, deleteProject, logout } from '$lib/actions';
+	import { goto } from '$app/navigation';
+	import { Button, Card, Input, Field } from '$lib/components/ui';
+	import { FileTextIcon, FilesIcon, CloseIcon } from '$lib/components/ui/icons';
 
 	let { data } = $props();
 	app.currentUser = data.user ?? null;
 
-	let booted = false;
+	let loading = $state(true);
+	let modalOpen = $state(false);
+	let newName = $state('');
+	let creating = $state(false);
+
+	// reset any stale workspace state when landing on the list
+	app.currentProject = null;
+
 	$effect(() => {
-		if (booted) return;
-		booted = true;
-		loadAIStatus();
-		const wantProject = page.url.searchParams.get('project');
-		loadProjects().then(() => {
-			if (wantProject) {
-				const p = app.projects.find((x) => x.id === wantProject);
-				if (p) enterProject(p);
-			}
-		});
+		let active = true;
+		fetch('/api/projects')
+			.then((r) => r.json())
+			.then((list) => {
+				if (active) app.projects = list;
+			})
+			.finally(() => {
+				if (active) loading = false;
+			});
+		return () => {
+			active = false;
+		};
 	});
+
+	function openModal() {
+		newName = '';
+		modalOpen = true;
+	}
+
+	async function submitCreate() {
+		if (creating) return;
+		creating = true;
+		const project = await createProjectNamed(newName);
+		creating = false;
+		if (project) {
+			modalOpen = false;
+			goto(`/app/${project.id}`);
+		}
+	}
+
+	function fmtDate(s: string) {
+		return new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+	}
 </script>
 
-<div class="h-dvh flex overflow-hidden">
-	<div class="hidden h-full w-[260px] lg:flex">
-		<Sidebar />
-	</div>
-	<div class="flex-1 flex min-w-0">
-		<ChatPanel />
-		<DocumentPreview />
-	</div>
+<svelte:head><title>Project — Paperio</title></svelte:head>
+
+<div class="min-h-dvh flex flex-col bg-[var(--bg-base)] text-[var(--fg-base)]">
+	<!-- Navbar -->
+	<header class="border-b border-[var(--border-base)] bg-[var(--bg-subtle)]">
+		<div class="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+			<a href="/app" class="flex items-center gap-2 font-semibold">
+				<FileTextIcon size={20} />
+				<span>Paperio</span>
+			</a>
+			<nav class="flex items-center gap-3">
+				<a href="/templates" class="text-sm text-[var(--fg-interactive)] hover:underline">Galeri Template</a>
+				{#if app.currentUser?.role === 'admin'}
+					<a href="/admin" class="text-sm text-[var(--fg-interactive)] hover:underline">Admin</a>
+				{/if}
+				<div class="hidden text-right sm:block">
+					<div class="text-xs font-medium leading-tight">{app.currentUser?.name || app.currentUser?.email}</div>
+					<div class="text-[10px] text-[var(--fg-muted)] leading-tight">{app.currentUser?.email}</div>
+				</div>
+				<Button variant="neutral" size="sm" onclick={logout}>Keluar</Button>
+			</nav>
+		</div>
+	</header>
+
+	<!-- Content -->
+	<main class="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+		<div class="mb-6 flex items-center justify-between">
+			<div>
+				<h1 class="text-2xl font-bold">Project</h1>
+				<p class="text-sm text-[var(--fg-muted)]">Kelola dokumen yang kamu buat.</p>
+			</div>
+			<Button size="md" onclick={openModal}>+ Buat Project</Button>
+		</div>
+
+		{#if loading}
+			<p class="py-16 text-center text-sm text-[var(--fg-muted)]">Memuat…</p>
+		{:else if app.projects.length === 0}
+			<Card padding="lg" class="flex flex-col items-center gap-3 text-center">
+				<FilesIcon size={32} />
+				<div>
+					<p class="font-medium">Belum ada project</p>
+					<p class="text-sm text-[var(--fg-muted)]">Buat project pertamamu untuk mulai.</p>
+				</div>
+				<Button size="md" onclick={openModal}>+ Buat Project</Button>
+			</Card>
+		{:else}
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				{#each app.projects as project (project.id)}
+					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+					<div
+						class="group cursor-pointer rounded-xl border border-[var(--border-base)] bg-[var(--bg-component)] p-5 transition-colors hover:border-[var(--border-interactive)]"
+						onclick={() => goto(`/app/${project.id}`)}
+						role="button"
+						tabindex="0"
+						onkeydown={(e) => e.key === 'Enter' && goto(`/app/${project.id}`)}
+					>
+						<div class="flex items-start justify-between gap-2">
+							<FileTextIcon size={20} />
+							<button
+								onclick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
+								class="rounded p-1 text-[var(--fg-muted)] opacity-0 transition-all hover:text-[var(--fg-error)] group-hover:opacity-100"
+								title="Hapus project"
+							>
+								<CloseIcon size={14} />
+							</button>
+						</div>
+						<h3 class="mt-3 truncate font-medium">{project.name}</h3>
+						<p class="mt-1 text-xs text-[var(--fg-muted)]">
+							{#if project.status}<span class="capitalize">{project.status}</span> · {/if}{fmtDate(project.updated_at)}
+						</p>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</main>
+
+	<!-- Footer -->
+	<footer class="border-t border-[var(--border-base)] bg-[var(--bg-subtle)]">
+		<div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-5 text-xs text-[var(--fg-muted)]">
+			<span>Paperio — Generator Dokumen AI</span>
+			<a href="/" class="hover:underline">Beranda</a>
+		</div>
+	</footer>
 </div>
+
+<!-- Create modal -->
+{#if modalOpen}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] p-4"
+		onclick={() => (modalOpen = false)}
+		role="presentation"
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div onclick={(e) => e.stopPropagation()} role="presentation" class="w-full max-w-sm">
+			<Card padding="lg">
+				<h2 class="text-lg font-semibold">Buat Project Baru</h2>
+				<p class="mt-1 text-sm text-[var(--fg-muted)]">Beri nama project kamu.</p>
+				<form
+					onsubmit={(e) => { e.preventDefault(); submitCreate(); }}
+					class="mt-4 flex flex-col gap-4"
+				>
+					<Field label="Nama Project" forId="project-name">
+						<!-- svelte-ignore a11y_autofocus -->
+						<Input
+							id="project-name"
+							bind:value={newName}
+							placeholder="Skripsi Bab 1"
+							autofocus
+							required
+						/>
+					</Field>
+					<div class="flex justify-end gap-2">
+						<Button type="button" variant="neutral" size="md" onclick={() => (modalOpen = false)}>Batal</Button>
+						<Button type="submit" size="md" loading={creating}>Buat</Button>
+					</div>
+				</form>
+			</Card>
+		</div>
+	</div>
+{/if}

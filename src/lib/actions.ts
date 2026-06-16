@@ -59,6 +59,19 @@ export async function createProject() {
 	await enterProject(project);
 }
 
+// Create a named project without entering it (list page → modal). Returns the project.
+export async function createProjectNamed(name: string): Promise<typeof app.projects[0] | null> {
+	const res = await fetch('/api/projects', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ name: name.trim() || 'New Project' })
+	});
+	if (!res.ok) return null;
+	const project = await res.json();
+	app.projects = [project, ...app.projects];
+	return project;
+}
+
 export async function deleteProject(id: string) {
 	await fetch(`/api/projects/${id}`, { method: 'DELETE' });
 	app.projects = app.projects.filter(p => p.id !== id);
@@ -112,6 +125,7 @@ export function exitToProjects() {
 	app.sidebarView = 'projects';
 	app.expandedFolderIds = new Set();
 	app.navigatingFolderId = null;
+	goto('/app');
 }
 
 export async function openRootChat() {

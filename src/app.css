@@ -81,6 +81,15 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Clickable elements get pointer cursor (Tailwind 4 resets <button> to default) */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+label[for],
+summary,
+select:not(:disabled) {
+  cursor: pointer;
+}
+
 .markdown-content h1 { font-size: 2em; font-weight: 700; margin: 0.67em 0; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.3em; color: #111827; }
 .markdown-content h2 { font-size: 1.5em; font-weight: 600; margin: 0.83em 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; color: #1f2937; }
 .markdown-content h3 { font-size: 1.17em; font-weight: 600; margin: 1em 0; color: #374151; }

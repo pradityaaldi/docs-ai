@@ -53,8 +53,8 @@
 
 	async function onDeleteDoc(e: MouseEvent, docId: string) {
 		e.stopPropagation();
-		await deleteDocument(docId);
-		subDocuments = subDocuments.filter(d => d.id !== docId);
+		const deleted = await deleteDocument(docId);
+		if (deleted) subDocuments = subDocuments.filter(d => d.id !== docId);
 	}
 
 	let isExpanded = $derived(app.expandedFolderIds.has(node.id));

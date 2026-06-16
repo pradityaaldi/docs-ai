@@ -1,5 +1,6 @@
 import { goto } from '$app/navigation';
 import { app } from '$lib/stores/app.svelte';
+import { confirmAction } from '$lib/stores/confirm.svelte';
 
 // Refresh the current project's folder tree + root documents. Shared by folder,
 // document, and chat actions — lives here because the tree belongs to a project.
@@ -45,6 +46,12 @@ export async function createProjectNamed(name: string): Promise<typeof app.proje
 }
 
 export async function deleteProject(id: string) {
+	const ok = await confirmAction({
+		title: 'Hapus Project',
+		message: 'Project beserta semua dokumen di dalamnya akan dihapus permanen. Lanjutkan?',
+		confirmText: 'Hapus'
+	});
+	if (!ok) return;
 	await fetch(`/api/projects/${id}`, { method: 'DELETE' });
 	app.projects = app.projects.filter(p => p.id !== id);
 	if (app.currentProject?.id === id) {

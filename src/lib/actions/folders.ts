@@ -1,4 +1,5 @@
 import { app } from '$lib/stores/app.svelte';
+import { confirmAction } from '$lib/stores/confirm.svelte';
 import { refreshTree } from './projects';
 
 export async function createFolder(parentId: string | null = null) {
@@ -13,6 +14,12 @@ export async function createFolder(parentId: string | null = null) {
 }
 
 export async function deleteFolder(id: string) {
+	const ok = await confirmAction({
+		title: 'Hapus Folder',
+		message: 'Folder beserta isinya akan dihapus permanen. Lanjutkan?',
+		confirmText: 'Hapus'
+	});
+	if (!ok) return;
 	await fetch(`/api/folders/${id}`, { method: 'DELETE' });
 	app.expandedFolderIds.delete(id);
 	await refreshTree();

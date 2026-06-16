@@ -4,6 +4,7 @@ export { default as Breadcrumb } from './Breadcrumb.svelte';
 export { default as Button } from './Button.svelte';
 export { default as Card } from './Card.svelte';
 export { default as CodeEditor } from './CodeEditor.svelte';
+export { default as ConfirmModal } from './ConfirmModal.svelte';
 export { default as Field } from './Field.svelte';
 export { default as Input } from './Input.svelte';
 export { default as PageHeader } from './PageHeader.svelte';

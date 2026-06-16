@@ -1,4 +1,5 @@
 import { app } from '$lib/stores/app.svelte';
+import { confirmAction } from '$lib/stores/confirm.svelte';
 import { refreshTree } from './projects';
 
 export async function loadDocuments() {
@@ -55,7 +56,13 @@ export async function saveDocument() {
 	});
 }
 
-export async function deleteDocument(id: string) {
+export async function deleteDocument(id: string): Promise<boolean> {
+	const ok = await confirmAction({
+		title: 'Hapus Dokumen',
+		message: 'Dokumen ini akan dihapus permanen. Lanjutkan?',
+		confirmText: 'Hapus'
+	});
+	if (!ok) return false;
 	await fetch(`/api/documents/${id}`, { method: 'DELETE' });
 	if (app.currentDoc?.id === id) {
 		app.currentDoc = null;
@@ -68,6 +75,7 @@ export async function deleteDocument(id: string) {
 	} else {
 		app.documents = app.documents.filter(d => d.id !== id);
 	}
+	return true;
 }
 
 function removeDocFromTree(nodes: typeof app.projectTree, docId: string): typeof app.projectTree {

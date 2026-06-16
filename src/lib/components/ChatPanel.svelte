@@ -155,8 +155,8 @@
 	<div class="h-[45px] px-4 border-b border-[var(--border-base)] flex items-center justify-between shrink-0">
 		<div class="flex items-center gap-2">
 			<h2 class="text-xs font-medium text-[var(--fg-subtle)] uppercase tracking-wide">Chat</h2>
-			{#if !app.activeConnector}
-				<span class="text-[10px] text-[var(--fg-error)]">No connector</span>
+			{#if !app.aiReady}
+				<span class="text-[10px] text-[var(--fg-error)]">AI not configured</span>
 			{/if}
 		</div>
 		{#if isActive || isTerminalStatus}
@@ -342,7 +342,7 @@
 				placeholder={isActive ? 'AI is working...' : app.currentProject ? (app.currentDoc ? 'Type a message...' : 'Describe what you want to create...') : 'Select a project first'}
 				class="flex-1 bg-[var(--bg-field)] border border-[var(--border-base)] rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-[var(--border-interactive)] focus:ring-1 focus:ring-[var(--border-interactive)] transition-all placeholder-[var(--fg-disabled)] text-[var(--fg-base)]"
 				rows="1"
-				disabled={!app.activeConnector || !app.currentProject || isActive}
+				disabled={!app.aiReady || !app.currentProject || isActive}
 			></textarea>
 			<div class="flex items-center gap-1.5">
 				{#if isActive}
@@ -355,7 +355,7 @@
 				{:else}
 					<button
 						onclick={() => (app.currentDoc?.id === app.globalConversation?.id) ? sendProjectMessage() : sendMessage()}
-						disabled={!app.chatInput.trim() || !app.activeConnector || !app.currentProject}
+						disabled={!app.chatInput.trim() || !app.aiReady || !app.currentProject}
 						class="shrink-0 px-3 py-2 bg-[var(--fg-interactive)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors cursor-pointer text-[var(--fg-on-color)]"
 					>
 						Send

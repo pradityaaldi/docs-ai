@@ -1,14 +1,27 @@
 <script lang="ts">
 	import '../app.css';
-	import { loadConnectors, loadProjects } from '$lib/actions';
+	import { loadAIStatus, loadProjects, enterProject } from '$lib/actions';
+	import { app } from '$lib/stores/app.svelte';
+	import { page } from '$app/state';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
 	import DocumentPreview from '$lib/components/DocumentPreview.svelte';
-	import SettingsModal from '$lib/components/SettingsModal.svelte';
 
+	let { data } = $props();
+	app.currentUser = data.user ?? null;
+
+	let booted = false;
 	$effect(() => {
-		loadConnectors();
-		loadProjects();
+		if (booted) return;
+		booted = true;
+		loadAIStatus();
+		const wantProject = page.url.searchParams.get('project');
+		loadProjects().then(() => {
+			if (wantProject) {
+				const p = app.projects.find((x) => x.id === wantProject);
+				if (p) enterProject(p);
+			}
+		});
 	});
 </script>
 
@@ -21,5 +34,3 @@
 		<DocumentPreview />
 	</div>
 </div>
-
-<SettingsModal />

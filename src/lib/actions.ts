@@ -1,5 +1,12 @@
+import { goto } from '$app/navigation';
 import { app, setPhase, type Document, type ToolResultEntry } from '$lib/stores/app.svelte';
 import { inlineIllustrations } from '$lib/shared/illustration';
+
+export async function logout() {
+	await fetch('/api/auth/logout', { method: 'POST' });
+	app.currentUser = null;
+	goto('/auth/login');
+}
 
 function stripThink(text: string): string {
 	let s = text.replace(/<think>[\s\S]*?<\/think>/g, '');
@@ -18,11 +25,16 @@ function stripError(raw: string): string {
 	return idx >= 0 ? raw.slice(0, idx) : raw;
 }
 
-export async function loadConnectors() {
-	const res = await fetch('/api/connectors');
-	const data = await res.json();
-	app.connectors = data;
-	app.activeConnector = data.find((c: any) => c.is_active) || null;
+export async function loadAIStatus() {
+	try {
+		const res = await fetch('/api/ai-status');
+		const data = await res.json();
+		app.aiReady = !!data.ready;
+		app.aiProvider = data.provider || '';
+	} catch {
+		app.aiReady = false;
+		app.aiProvider = '';
+	}
 }
 
 // ── Projects ──
@@ -224,8 +236,7 @@ function removeDocFromTree(nodes: typeof app.projectTree, docId: string): typeof
 // ── Messaging & Generation ──
 
 export async function sendMessage() {
-	const active = app.connectors.find(c => c.is_active) || null;
-	if (!app.chatInput.trim() || !app.currentDoc || !active || app.isLoading || app.isGenerating) return;
+	if (!app.chatInput.trim() || !app.currentDoc || !app.aiReady || app.isLoading || app.isGenerating) return;
 	const userMessage = app.chatInput;
 	app.chatInput = '';
 
@@ -281,8 +292,7 @@ export async function sendMessage() {
 }
 
 export async function sendProjectMessage() {
-	const active = app.connectors.find(c => c.is_active) || null;
-	if (!app.chatInput.trim() || !app.currentProject || !active || app.isLoading || app.isGenerating) return;
+	if (!app.chatInput.trim() || !app.currentProject || !app.aiReady || app.isLoading || app.isGenerating) return;
 	const userMessage = app.chatInput;
 	app.chatInput = '';
 
@@ -560,6 +570,80 @@ function trackGenerateProgress(content: string) {
 	} catch { /* incomplete JSON during streaming */ }
 }
 
+// ── Single-shot template generation ──
+
+export async function generateProjectDoc() {
+	if (!app.currentProject || app.isGenerating || app.isLoading) return;
+	const proj = app.currentProject;
+
+	app.isGenerating = true;
+	const controller = new AbortController();
+	app.generateAbortController = controller;
+	app.status.sections = [];
+	app.status.activeSection = '';
+	setPhase('document-connecting', 'Menyiapkan AI…');
+
+	try {
+		const res = await fetch(`/api/projects/${proj.id}/generate`, {
+			method: 'POST',
+			signal: controller.signal
+		});
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+			setPhase('error', 'Gagal generate', err.error || `HTTP ${res.status}`);
+			return;
+		}
+		const reader = res.body?.getReader();
+		if (!reader) { setPhase('error', 'No stream'); return; }
+		const decoder = new TextDecoder();
+		let buffer = '';
+		let doneDocId: string | null = null;
+
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			buffer += decoder.decode(value, { stream: true });
+			let nl: number;
+			while ((nl = buffer.indexOf('\n')) !== -1) {
+				const line = buffer.slice(0, nl).trim();
+				buffer = buffer.slice(nl + 1);
+				if (!line) continue;
+				let ev: any;
+				try { ev = JSON.parse(line); } catch { continue; }
+				if (ev.type === 'start') {
+					setPhase('document-streaming', 'Menulis dokumen…');
+				} else if (ev.type === 'section') {
+					app.status.activeSection = ev.name;
+					app.status.sections = [...app.status.sections, ev.name];
+					const n = (ev.index ?? 0) + 1;
+					setPhase('document-streaming', `Bagian ${n}/${ev.total}: ${ev.name}`);
+				} else if (ev.type === 'done') {
+					doneDocId = ev.document_id;
+				} else if (ev.type === 'error') {
+					setPhase('error', 'Generate gagal', ev.error || '');
+					return;
+				} else if (ev.type === 'aborted') {
+					setPhase('aborted', 'Dihentikan.');
+					return;
+				}
+			}
+		}
+
+		// reflect status + open the generated document
+		app.currentProject = { ...proj, status: 'generated' };
+		app.projects = app.projects.map((p) => (p.id === proj.id ? { ...p, status: 'generated' } : p));
+		await refreshTree();
+		if (doneDocId) await selectDocument({ id: doneDocId });
+		setPhase('idle', '');
+	} catch (e: any) {
+		if (e?.name === 'AbortError') setPhase('aborted', 'Dihentikan.');
+		else setPhase('error', 'Generate gagal', e?.message || String(e));
+	} finally {
+		app.isGenerating = false;
+		app.generateAbortController = null;
+	}
+}
+
 export async function stopGeneration() {
 	if (app.abortController) {
 		app.abortController.abort();
@@ -605,6 +689,17 @@ export async function exportDocx() {
 	a.download = `${app.currentDoc.title}.docx`;
 	a.click();
 	URL.revokeObjectURL(url);
+
+	// mark project ready-to-export
+	if (app.currentProject && app.currentProject.status !== 'siap export') {
+		await fetch(`/api/projects/${app.currentProject.id}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ status: 'siap export' })
+		}).catch(() => {});
+		app.currentProject = { ...app.currentProject, status: 'siap export' };
+		app.projects = app.projects.map((p) => (p.id === app.currentProject!.id ? { ...p, status: 'siap export' } : p));
+	}
 }
 
 export async function exportPdf() {

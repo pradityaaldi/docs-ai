@@ -1,24 +1,26 @@
 <script lang="ts">
 	import '../../app.css';
 	import { onMount } from 'svelte';
+	import { Button, Card, Input, PageHeader, Select, StatCard, Tabs } from '$lib/components/ui';
 
-	type Tab = 'config' | 'limits' | 'monitor' | 'users';
-	let tab = $state<Tab>('config');
+	const TABS = [
+		{ key: 'config', label: 'AI Config' },
+		{ key: 'limits', label: 'Safety Limits' },
+		{ key: 'monitor', label: 'Monitoring' },
+		{ key: 'users', label: 'Aktivasi User' }
+	];
+	let tab = $state('config');
 
-	// AI config
 	let configs = $state<any[]>([]);
 	let newCfg = $state({ provider: 'openai', model: '', baseUrl: '', apiKey: '' });
 	let testMsg = $state('');
 	let cfgMsg = $state('');
 
-	// limits
 	let limits = $state<any>(null);
 	let limitsMsg = $state('');
 
-	// monitor
 	let stats = $state<any>(null);
 
-	// users activate
 	let actEmail = $state('');
 	let actPlan = $state('Basic');
 	let actMsg = $state('');
@@ -63,70 +65,66 @@
 </script>
 
 <div class="min-h-dvh bg-[var(--bg-base)]">
-	<header class="border-b border-[var(--border-base)] px-6 py-4 flex items-center justify-between">
-		<h1 class="text-lg font-semibold">Admin · Paperio</h1>
-		<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>
-	</header>
+	<PageHeader title="Admin · Paperio">
+		{#snippet actions()}
+			<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>
+		{/snippet}
+	</PageHeader>
 
 	<div class="px-6 py-4 max-w-4xl mx-auto">
-		<div class="flex gap-2 mb-6">
-			{#each [['config','AI Config'],['limits','Safety Limits'],['monitor','Monitoring'],['users','Aktivasi User']] as [k,label]}
-				<button onclick={() => tab = k as Tab}
-					class="px-3 py-1.5 rounded-full text-sm {tab === k ? 'bg-[var(--fg-interactive)] text-[var(--fg-on-color)]' : 'bg-[var(--bg-component)] border border-[var(--border-base)] text-[var(--fg-subtle)]'}">{label}</button>
-			{/each}
-		</div>
+		<Tabs tabs={TABS} bind:active={tab} class="mb-6" />
 
 		{#if tab === 'config'}
 			<div class="space-y-4">
 				{#each configs as c (c.id)}
-					<div class="flex items-center gap-3 bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-4">
+					<Card rounded="lg" padding="sm" class="flex items-center gap-3">
 						<span class="w-2 h-2 rounded-full {c.is_active ? 'bg-[var(--tag-green-text)]' : 'bg-[var(--fg-muted)]'}"></span>
 						<div class="flex-1 min-w-0">
 							<div class="text-sm font-medium">{c.provider} · {c.model}</div>
 							<div class="text-xs text-[var(--fg-muted)] truncate">{c.base_url} · key {c.api_key}</div>
 						</div>
-						<button onclick={() => testConfig(c.id)} class="text-xs px-2 py-1 border border-[var(--border-base)] rounded">Test</button>
-						{#if !c.is_active}<button onclick={() => activate(c.id)} class="text-xs px-2 py-1 bg-[var(--fg-interactive)] text-[var(--fg-on-color)] rounded">Aktifkan</button>{/if}
-						<button onclick={() => delConfig(c.id)} class="text-xs px-2 py-1 text-[var(--fg-error)]">Hapus</button>
-					</div>
+						<Button variant="neutral" size="sm" onclick={() => testConfig(c.id)}>Test</Button>
+						{#if !c.is_active}<Button size="sm" onclick={() => activate(c.id)}>Aktifkan</Button>{/if}
+						<Button variant="ghost" size="sm" onclick={() => delConfig(c.id)}>Hapus</Button>
+					</Card>
 				{/each}
 				{#if testMsg}<p class="text-sm">{testMsg}</p>{/if}
 
-				<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-4 space-y-3">
+				<Card rounded="lg" padding="sm" class="space-y-3">
 					<h3 class="text-sm font-medium">Tambah AI Config</h3>
 					<div class="grid grid-cols-2 gap-3">
-						<select bind:value={newCfg.provider} class="bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2 text-sm">
+						<Select bind:value={newCfg.provider}>
 							<option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option>
-						</select>
-						<input bind:value={newCfg.model} placeholder="model (gpt-4o, claude-…)" class="bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2 text-sm" />
-						<input bind:value={newCfg.baseUrl} placeholder="base url (kosongkan = default)" class="bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2 text-sm" />
-						<input bind:value={newCfg.apiKey} type="password" placeholder="API key" class="bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2 text-sm" />
+						</Select>
+						<Input bind:value={newCfg.model} placeholder="model (gpt-4o, claude-…)" />
+						<Input bind:value={newCfg.baseUrl} placeholder="base url (kosongkan = default)" />
+						<Input bind:value={newCfg.apiKey} type="password" placeholder="API key" />
 					</div>
-					<button onclick={addConfig} class="px-3 py-2 bg-[var(--fg-interactive)] text-[var(--fg-on-color)] rounded text-sm">Simpan</button>
+					<Button onclick={addConfig}>Simpan</Button>
 					{#if cfgMsg}<span class="text-sm text-[var(--fg-error)] ml-2">{cfgMsg}</span>{/if}
-				</div>
+				</Card>
 			</div>
 		{:else if tab === 'limits' && limits}
-			<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-5 space-y-3 max-w-md">
+			<Card rounded="lg" class="space-y-3 max-w-md">
 				<label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={limits.enabled} /> AI aktif (kill switch)</label>
-				<label class="block text-sm">Cap token harian global<input type="number" bind:value={limits.daily_token_cap} class="mt-1 w-full bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2" /></label>
-				<label class="block text-sm">Cap biaya bulanan ($)<input type="number" step="0.01" bind:value={limits.monthly_cost_cap} class="mt-1 w-full bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2" /></label>
-				<label class="block text-sm">Cap token harian per-user<input type="number" bind:value={limits.per_user_daily_cap} class="mt-1 w-full bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2" /></label>
-				<label class="block text-sm">Rate limit (req/menit/user)<input type="number" bind:value={limits.rate_per_min} class="mt-1 w-full bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2" /></label>
-				<label class="block text-sm">Max token / request<input type="number" bind:value={limits.max_tokens_per_req} class="mt-1 w-full bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2" /></label>
-				<label class="block text-sm">Warn threshold (%)<input type="number" bind:value={limits.warn_threshold_pct} class="mt-1 w-full bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2" /></label>
-				<button onclick={saveLimits} class="px-3 py-2 bg-[var(--fg-interactive)] text-[var(--fg-on-color)] rounded text-sm">Simpan</button>
+				<label class="block text-sm">Cap token harian global<Input type="number" bind:value={limits.daily_token_cap} class="mt-1" /></label>
+				<label class="block text-sm">Cap biaya bulanan ($)<Input type="number" step="0.01" bind:value={limits.monthly_cost_cap} class="mt-1" /></label>
+				<label class="block text-sm">Cap token harian per-user<Input type="number" bind:value={limits.per_user_daily_cap} class="mt-1" /></label>
+				<label class="block text-sm">Rate limit (req/menit/user)<Input type="number" bind:value={limits.rate_per_min} class="mt-1" /></label>
+				<label class="block text-sm">Max token / request<Input type="number" bind:value={limits.max_tokens_per_req} class="mt-1" /></label>
+				<label class="block text-sm">Warn threshold (%)<Input type="number" bind:value={limits.warn_threshold_pct} class="mt-1" /></label>
+				<Button onclick={saveLimits}>Simpan</Button>
 				{#if limitsMsg}<span class="text-sm ml-2">{limitsMsg}</span>{/if}
-			</div>
+			</Card>
 		{:else if tab === 'monitor' && stats}
 			<div class="space-y-5">
 				<div class="grid grid-cols-3 gap-4">
-					<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-4"><div class="text-xs text-[var(--fg-muted)]">Token hari ini</div><div class="text-xl font-bold">{stats.today.tokens.toLocaleString()}</div></div>
-					<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-4"><div class="text-xs text-[var(--fg-muted)]">Generate bulan ini</div><div class="text-xl font-bold">{stats.month.count}</div></div>
-					<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-4"><div class="text-xs text-[var(--fg-muted)]">Biaya bulan ini</div><div class="text-xl font-bold">${stats.month.cost.toFixed(2)}</div></div>
-					<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-4"><div class="text-xs text-[var(--fg-muted)]">Error rate</div><div class="text-xl font-bold">{(stats.month.errorRate * 100).toFixed(1)}%</div></div>
-					<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-4"><div class="text-xs text-[var(--fg-muted)]">Avg latency</div><div class="text-xl font-bold">{stats.month.avgLatencyMs}ms</div></div>
-					<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-4"><div class="text-xs text-[var(--fg-muted)]">Token bulan ini</div><div class="text-xl font-bold">{stats.month.tokens.toLocaleString()}</div></div>
+					<StatCard label="Token hari ini" value={stats.today.tokens.toLocaleString()} />
+					<StatCard label="Generate bulan ini" value={stats.month.count} />
+					<StatCard label="Biaya bulan ini" value={`$${stats.month.cost.toFixed(2)}`} />
+					<StatCard label="Error rate" value={`${(stats.month.errorRate * 100).toFixed(1)}%`} />
+					<StatCard label="Avg latency" value={`${stats.month.avgLatencyMs}ms`} />
+					<StatCard label="Token bulan ini" value={stats.month.tokens.toLocaleString()} />
 				</div>
 				<div>
 					<h3 class="text-sm font-medium mb-2">Per kategori</h3>
@@ -145,15 +143,15 @@
 				</div>
 			</div>
 		{:else if tab === 'users'}
-			<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-lg p-5 space-y-3 max-w-md">
+			<Card rounded="lg" class="space-y-3 max-w-md">
 				<h3 class="text-sm font-medium">Aktifkan langganan manual (fallback)</h3>
-				<input bind:value={actEmail} placeholder="email user" class="w-full bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2 text-sm" />
-				<select bind:value={actPlan} class="w-full bg-[var(--bg-field)] border border-[var(--border-base)] rounded px-3 py-2 text-sm">
+				<Input bind:value={actEmail} placeholder="email user" />
+				<Select bind:value={actPlan}>
 					<option>Free Trial</option><option>Basic</option><option>Pro</option>
-				</select>
-				<button onclick={activateUser} class="px-3 py-2 bg-[var(--fg-interactive)] text-[var(--fg-on-color)] rounded text-sm">Aktifkan</button>
+				</Select>
+				<Button onclick={activateUser}>Aktifkan</Button>
 				{#if actMsg}<p class="text-sm">{actMsg}</p>{/if}
-			</div>
+			</Card>
 		{/if}
 	</div>
 </div>

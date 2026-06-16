@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../../app.css';
 	import { goto } from '$app/navigation';
+	import { Alert, Button, Card, PageHeader } from '$lib/components/ui';
 	let { data } = $props();
 
 	let loadingId = $state('');
@@ -57,33 +58,29 @@
 </script>
 
 <div class="min-h-dvh bg-[var(--bg-base)]">
-	<header class="border-b border-[var(--border-base)] px-6 py-4 flex items-center justify-between">
-		<div>
-			<h1 class="text-lg font-semibold">Pilih Paket</h1>
-			<p class="text-sm text-[var(--fg-muted)]">Berlangganan untuk mulai generate dokumen.</p>
-		</div>
-		{#if data.active}<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>{/if}
-	</header>
+	<PageHeader title="Pilih Paket" subtitle="Berlangganan untuk mulai generate dokumen.">
+		{#snippet actions()}
+			{#if data.active}<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>{/if}
+		{/snippet}
+	</PageHeader>
 
 	<div class="px-6 py-6 max-w-4xl mx-auto">
 		{#if data.active}
-			<div class="mb-6 rounded-lg bg-[var(--bg-component)] border border-[var(--border-base)] px-4 py-3 text-sm">
+			<Card rounded="lg" padding="none" class="mb-6 px-4 py-3 text-sm">
 				✅ Langganan aktif: <b>{data.active.planName}</b>
 				{#if data.active.expiresAt}· berlaku s/d {new Date(data.active.expiresAt).toLocaleDateString('id-ID')}{/if}
 				· terpakai {data.active.quotaUsed}×
-			</div>
+			</Card>
 		{:else}
-			<div class="mb-6 rounded-lg bg-[var(--tag-red-bg,#fef2f2)] border border-[var(--border-base)] px-4 py-3 text-sm text-[var(--fg-error)]">
-				Kamu belum punya langganan aktif. Pilih paket di bawah untuk mulai.
-			</div>
+			<Alert class="mb-6">Kamu belum punya langganan aktif. Pilih paket di bawah untuk mulai.</Alert>
 		{/if}
 
 		{#if error}<div class="mb-4 text-sm text-[var(--fg-error)]">{error}</div>{/if}
-		{#if info}<div class="mb-4 text-sm text-[var(--fg-subtle)] bg-[var(--bg-component)] border border-[var(--border-base)] rounded px-3 py-2">{info}</div>{/if}
+		{#if info}<Alert variant="info" class="mb-4">{info}</Alert>{/if}
 
 		<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 			{#each data.plans as p (p.id)}
-				<div class="bg-[var(--bg-component)] border border-[var(--border-base)] rounded-xl p-5 flex flex-col">
+				<Card class="flex flex-col">
 					<h3 class="font-semibold text-lg">{p.name}</h3>
 					<div class="text-2xl font-bold mt-2">{p.price === 0 ? 'Gratis' : rupiah(p.price)}</div>
 					<div class="text-xs text-[var(--fg-muted)] mb-4">/ {p.durationDays} hari</div>
@@ -92,14 +89,10 @@
 						<li>✓ {p.maxProjects} project</li>
 						<li>✓ Export DOCX</li>
 					</ul>
-					<button
-						onclick={() => checkout(p.id)}
-						disabled={loadingId === p.id}
-						class="mt-4 w-full py-2 bg-[var(--fg-interactive)] hover:opacity-90 disabled:opacity-50 rounded-lg text-sm font-medium text-[var(--fg-on-color)]"
-					>
-						{loadingId === p.id ? 'Memproses…' : (p.price === 0 ? 'Pilih' : 'Bayar')}
-					</button>
-				</div>
+					<Button full class="mt-4" onclick={() => checkout(p.id)} loading={loadingId === p.id}>
+						{loadingId === p.id ? 'Memproses…' : p.price === 0 ? 'Pilih' : 'Bayar'}
+					</Button>
+				</Card>
 			{/each}
 		</div>
 

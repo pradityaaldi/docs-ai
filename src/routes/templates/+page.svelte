@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../../app.css';
+	import { PageHeader, Tabs } from '$lib/components/ui';
 	let { data } = $props();
 
 	const CATS = [
@@ -23,27 +24,14 @@
 </script>
 
 <div class="min-h-dvh bg-[var(--bg-base)]">
-	<header class="border-b border-[var(--border-base)] px-6 py-4 flex items-center justify-between">
-		<div>
-			<h1 class="text-lg font-semibold">Galeri Template</h1>
-			<p class="text-sm text-[var(--fg-muted)]">Pilih template siap pakai, isi form, AI bikin dokumennya.</p>
-		</div>
-		<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>
-	</header>
+	<PageHeader title="Galeri Template" subtitle="Pilih template siap pakai, isi form, AI bikin dokumennya.">
+		{#snippet actions()}
+			<a href="/" class="text-sm text-[var(--fg-interactive)] hover:underline">← Dashboard</a>
+		{/snippet}
+	</PageHeader>
 
 	<div class="px-6 py-4">
-		<div class="flex gap-2 mb-5">
-			{#each CATS as c}
-				<button
-					onclick={() => (activeCat = c.key)}
-					class="px-3 py-1.5 rounded-full text-sm transition-colors {activeCat === c.key
-						? 'bg-[var(--fg-interactive)] text-[var(--fg-on-color)]'
-						: 'bg-[var(--bg-component)] border border-[var(--border-base)] text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
-				>
-					{c.label}
-				</button>
-			{/each}
-		</div>
+		<Tabs tabs={CATS} bind:active={activeCat} class="mb-5" />
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 			{#each filtered as t (t.id)}

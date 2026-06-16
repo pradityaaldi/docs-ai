@@ -8,11 +8,11 @@
 	let { variant = 'neutral', class: extraClass = '', children }: Props = $props();
 
 	const variantClasses: Record<string, string> = {
-		success: 'bg-[var(--success-subtle)] text-[var(--success)]',
-		warning: 'bg-[var(--warning-subtle)] text-[var(--warning)]',
-		danger: 'bg-[var(--danger-subtle)] text-[var(--danger)]',
-		info: 'bg-[var(--accent-subtle)] text-[var(--accent-text)]',
-		neutral: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]'
+		success: 'bg-[var(--tag-green-bg)] text-[var(--tag-green-text)]',
+		warning: 'bg-[var(--tag-orange-bg)] text-[var(--tag-orange-text)]',
+		danger: 'bg-[var(--tag-red-bg)] text-[var(--tag-red-text)]',
+		info: 'bg-[var(--tag-blue-bg)] text-[var(--tag-blue-text)]',
+		neutral: 'bg-[var(--tag-neutral-bg)] text-[var(--tag-neutral-text)]'
 	};
 </script>
 

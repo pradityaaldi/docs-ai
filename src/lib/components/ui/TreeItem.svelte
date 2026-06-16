@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { app, type TreeNode, type DocEntry } from '$lib/stores/app.svelte';
 	import { selectDocument, loadFolderContents, deleteDocument, deleteFolder, createDocument, createFolder } from '$lib/actions';
+	import TreeItem from '$lib/components/ui/TreeItem.svelte';
 
 	interface Props {
 		node: TreeNode;
@@ -64,7 +65,7 @@
 <div class="ml-0">
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div
-		class="group flex items-center gap-x-1.5 py-1 pl-2 pr-1 rounded-md cursor-pointer text-sm text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)] transition-fg"
+		class="group flex cursor-pointer items-center gap-x-1.5 rounded-lg py-1.5 pl-2 pr-1 text-sm text-[var(--fg-subtle)] transition-colors hover:bg-[var(--bg-base-hover)]"
 		onclick={toggle}
 		role="button"
 		tabindex="0"
@@ -81,13 +82,13 @@
 		<span class="text-xs text-[var(--fg-muted)]">{displayDocCount}</span>
 
 		<div class="hidden group-hover:flex items-center gap-x-0.5 ml-0.5">
-			<button onclick={onCreateDocument} title="New document" class="p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-base)] cursor-pointer rounded">
+			<button onclick={onCreateDocument} title="New document" class="rounded p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-base)]">
 				<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
 			</button>
-			<button onclick={onCreateFolder} title="New folder" class="p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-base)] cursor-pointer rounded">
+			<button onclick={onCreateFolder} title="New folder" class="rounded p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-base)]">
 				<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 4h4.5l1.5 1.5H14v7H2V4z" stroke="currentColor" stroke-width="1.2"/><path d="M7 9h4M9 7v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
 			</button>
-			<button onclick={onDeleteFolder} title="Delete folder" class="p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-error)] cursor-pointer rounded">
+			<button onclick={onDeleteFolder} title="Delete folder" class="rounded p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-error)]">
 				<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V3h4v1M4 4v7a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
 			</button>
 		</div>
@@ -98,7 +99,7 @@
 			{#each node.documents as doc (doc.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 				<div
-					class="group flex items-center gap-x-1.5 py-1 pl-2 pr-1 rounded-md cursor-pointer text-sm transition-fg {app.currentDoc?.id === doc.id ? 'bg-[var(--bg-base)] text-[var(--fg-base)] shadow-[0_1px_2px_rgba(0,0,0,0.2)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
+					class="group flex cursor-pointer items-center gap-x-1.5 rounded-lg py-1.5 pl-2 pr-1 text-sm transition-colors {app.currentDoc?.id === doc.id ? 'bg-[var(--bg-subtle)] text-[var(--fg-base)] ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
 					onclick={() => selectDocument({ id: doc.id })}
 					role="button"
 					tabindex="0"
@@ -108,7 +109,8 @@
 					<span class="flex-1 min-w-0 truncate">{doc.title}</span>
 					<button
 						onclick={(e) => onDeleteDoc(e, doc.id)}
-						class="hidden group-hover:block p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-error)] cursor-pointer rounded"
+						aria-label="Delete document"
+						class="hidden rounded p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-error)] group-hover:block"
 					>
 						<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V3h4v1M4 4v7a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
 					</button>
@@ -117,7 +119,7 @@
 
 			{#if loaded}
 				{#each subfolders as sf (sf.id)}
-					<svelte:self node={{
+					<TreeItem node={{
 						id: sf.id,
 						name: sf.name,
 						type: 'folder',
@@ -130,7 +132,7 @@
 				{#each subDocuments as sdoc (sdoc.id)}
 					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 					<div
-						class="group flex items-center gap-x-1.5 py-1 pl-2 pr-1 rounded-md cursor-pointer text-sm transition-fg {app.currentDoc?.id === sdoc.id ? 'bg-[var(--bg-base)] text-[var(--fg-base)] shadow-[0_1px_2px_rgba(0,0,0,0.2)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
+						class="group flex cursor-pointer items-center gap-x-1.5 rounded-lg py-1.5 pl-2 pr-1 text-sm transition-colors {app.currentDoc?.id === sdoc.id ? 'bg-[var(--bg-subtle)] text-[var(--fg-base)] ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
 						onclick={() => selectDocument({ id: sdoc.id })}
 						role="button"
 						tabindex="0"
@@ -140,7 +142,8 @@
 						<span class="flex-1 min-w-0 truncate">{sdoc.title}</span>
 						<button
 							onclick={(e) => onDeleteDoc(e, sdoc.id)}
-							class="hidden group-hover:block p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-error)] cursor-pointer rounded"
+							aria-label="Delete document"
+							class="hidden rounded p-0.5 text-[var(--fg-muted)] hover:text-[var(--fg-error)] group-hover:block"
 						>
 							<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V3h4v1M4 4v7a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
 						</button>

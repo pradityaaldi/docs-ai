@@ -9,7 +9,9 @@
 	import DocumentPreview from '$lib/components/DocumentPreview.svelte';
 
 	let { data } = $props();
-	app.currentUser = data.user ?? null;
+	$effect(() => {
+		app.currentUser = data.user ?? null;
+	});
 
 	let booted = false;
 	$effect(() => {
@@ -29,11 +31,11 @@
 	});
 </script>
 
-<div class="h-dvh flex overflow-hidden">
-	<div class="hidden h-full w-[260px] lg:flex">
+<div class="flex h-dvh overflow-hidden bg-[var(--bg-subtle)] p-3">
+	<div class="hidden h-full w-[292px] shrink-0 overflow-hidden rounded-xl border border-[var(--border-base)] bg-[var(--bg-base)] shadow-sm lg:flex">
 		<Sidebar />
 	</div>
-	<div class="flex-1 flex min-w-0">
+	<div class="ml-3 flex min-w-0 flex-1 overflow-hidden rounded-xl border border-[var(--border-base)] bg-[var(--bg-base)] shadow-sm">
 		<ChatPanel />
 		<DocumentPreview />
 	</div>

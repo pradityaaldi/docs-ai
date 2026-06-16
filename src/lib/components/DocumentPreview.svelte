@@ -135,58 +135,59 @@
 	});
 </script>
 
-<div class="w-1/2 flex flex-col">
-	<div class="h-[45px] px-4 border-b border-[var(--border-base)] flex items-center justify-between gap-3 shrink-0">
+<div class="flex min-w-0 flex-1 flex-col bg-[var(--bg-subtle)]">
+	<div class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--border-base)] bg-[var(--bg-base)] px-4">
 		<div class="flex-1 min-w-0">
 			{#if app.currentDoc}
 				<input
 					type="text"
 					bind:value={app.currentDoc.title}
 					onblur={saveDocument}
-					class="w-full bg-transparent text-sm font-medium text-[var(--fg-base)] placeholder-[var(--fg-disabled)] outline-none transition-colors px-0.5 py-0.5"
+					class="w-full bg-transparent px-0.5 py-0.5 text-sm font-semibold text-[var(--fg-base)] outline-none transition-colors placeholder-[var(--fg-disabled)]"
 				/>
+				<p class="px-0.5 text-[11px] text-[var(--fg-muted)]">Preview and structured JSON editor</p>
 			{:else}
 				<span class="text-sm text-[var(--fg-muted)]">No document selected</span>
 			{/if}
 		</div>
 
 		<div class="flex items-center gap-1.5 shrink-0">
-			<div class="flex bg-[var(--bg-component)] rounded-md p-0.5">
+			<div class="flex rounded-lg border border-[var(--border-base)] bg-[var(--bg-subtle)] p-0.5">
 				<button
 					onclick={() => app.previewTab = 'preview'}
-					class="px-2 py-1 text-xs rounded font-medium transition-colors cursor-pointer {app.previewTab === 'preview' ? 'bg-[var(--fg-interactive)] text-[var(--fg-on-color)]' : 'text-[var(--fg-subtle)] hover:text-[var(--fg-base)]'}"
+					class="rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors {app.previewTab === 'preview' ? 'bg-[var(--bg-component)] text-[var(--fg-base)] shadow-sm ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:text-[var(--fg-base)]'}"
 				>Preview</button>
 				<button
 					onclick={() => app.previewTab = 'code'}
-					class="px-2 py-1 text-xs rounded font-medium transition-colors cursor-pointer {app.previewTab === 'code' ? 'bg-[var(--fg-interactive)] text-[var(--fg-on-color)]' : 'text-[var(--fg-subtle)] hover:text-[var(--fg-base)]'}"
+					class="rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors {app.previewTab === 'code' ? 'bg-[var(--bg-component)] text-[var(--fg-base)] shadow-sm ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:text-[var(--fg-base)]'}"
 				>Code</button>
 			</div>
 
 			{#if app.previewTab === 'preview'}
-				<div class="flex items-center gap-0.5 bg-[var(--bg-component)] rounded-md p-0.5">
-					<button onclick={() => app.zoom = Math.max(0.25, (app.zoom === -1 ? fitZoom : app.zoom) - 0.1)} class="px-1 py-0.5 text-xs text-[var(--fg-muted)] hover:text-[var(--fg-base)] rounded transition-colors cursor-pointer" title="Zoom out">&minus;</button>
+				<div class="flex items-center gap-0.5 rounded-lg border border-[var(--border-base)] bg-[var(--bg-subtle)] p-0.5">
+					<button onclick={() => app.zoom = Math.max(0.25, (app.zoom === -1 ? fitZoom : app.zoom) - 0.1)} class="rounded px-1.5 py-1 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-component)] hover:text-[var(--fg-base)]" title="Zoom out">&minus;</button>
 					<span class="text-[11px] text-[var(--fg-subtle)] min-w-[36px] text-center tabular-nums">{Math.round(effectiveZoom * 100)}%</span>
-					<button onclick={() => app.zoom = Math.min(3, (app.zoom === -1 ? fitZoom : app.zoom) + 0.1)} class="px-1 py-0.5 text-xs text-[var(--fg-muted)] hover:text-[var(--fg-base)] rounded transition-colors cursor-pointer" title="Zoom in">+</button>
-					<button onclick={() => app.zoom = -1} class="px-1 py-0.5 text-xs rounded transition-colors cursor-pointer {app.zoom === -1 ? 'text-[var(--fg-interactive)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-base)]'}" title="Fit to width">Fit</button>
+					<button onclick={() => app.zoom = Math.min(3, (app.zoom === -1 ? fitZoom : app.zoom) + 0.1)} class="rounded px-1.5 py-1 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-component)] hover:text-[var(--fg-base)]" title="Zoom in">+</button>
+					<button onclick={() => app.zoom = -1} class="rounded px-1.5 py-1 text-xs transition-colors {app.zoom === -1 ? 'bg-[var(--bg-component)] text-[var(--fg-base)] shadow-sm' : 'text-[var(--fg-muted)] hover:text-[var(--fg-base)]'}" title="Fit to width">Fit</button>
 				</div>
 			{:else}
 				<button
 					onclick={() => formatCode()}
 					disabled={!app.currentDoc || formatting}
 					title="Format JSON with Prettier"
-					class="px-2 py-1 text-xs bg-[var(--button-neutral)] hover:bg-[var(--button-neutral-hover)] disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--border-base)] rounded-md transition-colors cursor-pointer text-[var(--fg-base)] flex items-center gap-1"
+					class="flex items-center gap-1 rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
 					{formatting ? 'Formatting…' : 'Format'}
 				</button>
 			{/if}
 
-			<div class="w-px h-5 bg-[var(--border-base)] mx-1"></div>
+			<div class="mx-1 h-5 w-px bg-[var(--border-base)]"></div>
 
-			<button onclick={exportDocx} disabled={!app.currentDoc} class="px-2 py-1 text-xs bg-[var(--button-neutral)] hover:bg-[var(--button-neutral-hover)] disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--border-base)] rounded-md transition-colors cursor-pointer text-[var(--fg-base)]">
+			<button onclick={exportDocx} disabled={!app.currentDoc} class="rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50">
 				DOCX
 			</button>
-			<button onclick={exportPdf} disabled={!app.currentDoc} class="px-2 py-1 text-xs bg-[var(--button-neutral)] hover:bg-[var(--button-neutral-hover)] disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--border-base)] rounded-md transition-colors cursor-pointer text-[var(--fg-base)]">
+			<button onclick={exportPdf} disabled={!app.currentDoc} class="rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50">
 				PDF
 			</button>
 		</div>
@@ -194,7 +195,7 @@
 
 	<div class="flex-1 overflow-hidden">
 		{#if app.previewTab === 'preview'}
-			<div class="h-full overflow-auto bg-[#e4e4e7]" bind:this={app.previewContainer}>
+			<div class="h-full overflow-auto bg-[var(--bg-subtle)]" bind:this={app.previewContainer}>
 				{#if docCtx}
 					<div
 						bind:this={measurer}
@@ -214,7 +215,7 @@
 								style="width: {Math.round(PAGE_W * effectiveZoom)}px; height: {Math.round(PAGE_H * effectiveZoom)}px; transition: width 0.1s, height 0.1s"
 							>
 								<div
-									class="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12)] text-gray-900 relative"
+									class="relative bg-white text-gray-900 shadow-[0_16px_48px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.08)]"
 									style="transform: scale({effectiveZoom}); transform-origin: top left; width: {PAGE_W}px; height: {PAGE_H}px"
 									onwheel={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); app.zoom = Math.max(0.25, Math.min(3, (app.zoom === -1 ? fitZoom : app.zoom) + (e.deltaY > 0 ? -0.05 : 0.05))); } }}
 								>
@@ -245,7 +246,7 @@
 				</div>
 			</div>
 		{:else}
-			<div class="h-full flex flex-col bg-[var(--bg-base)]">
+			<div class="flex h-full flex-col bg-[var(--bg-base)]">
 				<div class="flex-1 overflow-hidden">
 					{#if app.currentDoc}
 						<CodeEditor
@@ -264,7 +265,7 @@
 						</div>
 					{/if}
 				</div>
-				<div class="px-4 py-2 bg-[var(--bg-subtle)] border-t border-[var(--border-base)] flex justify-between items-center gap-3">
+				<div class="flex items-center justify-between gap-3 border-t border-[var(--border-base)] bg-[var(--bg-subtle)] px-4 py-2">
 					<span class="text-xs text-[var(--fg-muted)] truncate">
 						{#if formatError}
 							<span class="text-red-400">Format error: {formatError}</span>

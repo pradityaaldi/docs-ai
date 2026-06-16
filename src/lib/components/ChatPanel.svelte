@@ -120,24 +120,30 @@
 	});
 </script>
 
-<div class="w-1/2 flex flex-col border-r border-[var(--border-base)]">
-	<div class="h-[45px] px-4 border-b border-[var(--border-base)] flex items-center justify-between shrink-0">
+<div class="flex w-[42%] min-w-[420px] flex-col border-r border-[var(--border-base)] bg-[var(--bg-base)]">
+	<div class="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border-base)] px-4">
 		<div class="flex items-center gap-2">
-			<h2 class="text-xs font-medium text-[var(--fg-subtle)] uppercase tracking-wide">Chat</h2>
+			<div class="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-base)] bg-[var(--bg-subtle)]">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+			</div>
+			<div>
+				<h2 class="text-sm font-semibold leading-none text-[var(--fg-base)]">Conversation</h2>
+				<p class="mt-1 text-[11px] text-[var(--fg-muted)]">Document generation agent</p>
+			</div>
 			{#if !app.aiReady}
-				<span class="text-[10px] text-[var(--fg-error)]">AI not configured</span>
+				<span class="rounded-full border border-[var(--tag-red-border)] bg-[var(--tag-red-bg)] px-2 py-0.5 text-[10px] text-[var(--tag-red-text)]">AI not configured</span>
 			{/if}
 		</div>
 		{#if isActive || isTerminalStatus}
-			<div class="flex items-center gap-1.5 text-[10px] {isTerminalStatus ? 'text-[var(--fg-muted)]' : 'text-[var(--fg-interactive)]'} tabular-nums">
+			<div class="flex items-center gap-1.5 rounded-full border border-[var(--border-base)] bg-[var(--bg-subtle)] px-2.5 py-1 text-[11px] {isTerminalStatus ? 'text-[var(--fg-muted)]' : 'text-[var(--fg-interactive)]'} tabular-nums">
 				<svg width="10" height="10" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
 				<span>{elapsedTotal}</span>
 			</div>
 		{/if}
 	</div>
 
-	<div class="flex-1 relative">
-		<div class="absolute inset-0 overflow-y-auto px-4 py-4 space-y-5" bind:this={scrollContainer} onscroll={handleScroll}>
+	<div class="relative flex-1 bg-[linear-gradient(#f8fafc_1px,transparent_1px),linear-gradient(90deg,#f8fafc_1px,transparent_1px)] [background-size:28px_28px]">
+		<div class="absolute inset-0 space-y-5 overflow-y-auto px-5 py-5" bind:this={scrollContainer} onscroll={handleScroll}>
 			<EmptyStates {isActive} />
 
 			{#each app.messages as msg (msg.id)}
@@ -147,7 +153,7 @@
 
 		<button
 			onclick={() => scrollToBottom()}
-			class="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-[var(--bg-component)] border border-[var(--border-base)] shadow-lg flex items-center justify-center hover:bg-[var(--bg-component-hover)] transition-all duration-300 cursor-pointer z-10 {showScrollButton ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-90 pointer-events-none'}"
+			class="absolute bottom-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-base)] bg-[var(--bg-component)] shadow-lg transition-all duration-300 hover:bg-[var(--bg-component-hover)] {showScrollButton ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-90 pointer-events-none'}"
 			title="Scroll to bottom"
 			aria-label="Scroll to bottom"
 		>
@@ -155,8 +161,8 @@
 		</button>
 	</div>
 
-	<div class="border-t border-[var(--border-base)] bg-[var(--bg-subtle)]">
-		<div class="flex items-center gap-2 p-3">
+	<div class="border-t border-[var(--border-base)] bg-[var(--bg-base)] p-4">
+		<div class="rounded-xl border border-[var(--border-base)] bg-[var(--bg-component)] shadow-sm">
 			<textarea
 				bind:this={textareaRef}
 				bind:value={app.chatInput}
@@ -167,24 +173,30 @@
 					t.style.height = Math.min(t.scrollHeight, 160) + 'px';
 				}}
 				placeholder={isActive ? 'AI is working...' : app.currentProject ? (app.currentDoc ? 'Type a message...' : 'Describe what you want to create...') : 'Select a project first'}
-				class="flex-1 bg-[var(--bg-field)] border border-[var(--border-base)] rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-[var(--border-interactive)] focus:ring-1 focus:ring-[var(--border-interactive)] transition-all placeholder-[var(--fg-disabled)] text-[var(--fg-base)]"
+				class="block max-h-40 min-h-[78px] w-full resize-none rounded-t-xl bg-transparent px-3.5 py-3 text-sm text-[var(--fg-base)] placeholder-[var(--fg-disabled)] outline-none transition-all"
 				rows="1"
 				disabled={!app.aiReady || !app.currentProject || isActive}
 			></textarea>
-			<div class="flex items-center gap-1.5">
+			<div class="flex items-center justify-between gap-2 border-t border-[var(--border-base)] px-2.5 py-2">
+				<div class="flex items-center gap-1.5">
+					<span class="rounded-md border border-[var(--border-base)] bg-[var(--bg-subtle)] px-2 py-1 text-[11px] text-[var(--fg-muted)]">Enter</span>
+					<span class="text-[11px] text-[var(--fg-muted)]">send</span>
+				</div>
 				{#if isActive}
 					<button
 						onclick={stopGeneration}
-						class="shrink-0 px-3 py-2 bg-[var(--button-danger)] hover:bg-[var(--button-danger-hover)] rounded-lg text-sm font-medium transition-colors cursor-pointer text-[var(--fg-on-color)]"
+						class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--button-danger)] px-3 py-2 text-sm font-medium text-[var(--fg-on-color)] transition-colors hover:bg-[var(--button-danger-hover)]"
 					>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
 						Stop
 					</button>
 				{:else}
 					<button
 						onclick={() => (app.currentDoc?.id === app.globalConversation?.id) ? sendProjectMessage() : sendMessage()}
 						disabled={!app.chatInput.trim() || !app.aiReady || !app.currentProject}
-						class="shrink-0 px-3 py-2 bg-[var(--fg-interactive)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors cursor-pointer text-[var(--fg-on-color)]"
+						class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--fg-interactive)] px-3 py-2 text-sm font-medium text-[var(--fg-on-color)] transition-colors hover:bg-[var(--fg-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-40"
 					>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m5 12 14-7-7 14-2-5-5-2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
 						Send
 					</button>
 				{/if}

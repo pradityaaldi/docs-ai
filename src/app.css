@@ -1,65 +1,65 @@
 @import "tailwindcss";
 
 :root {
-  --bg-base: #212124;
-  --bg-subtle: #18181b;
-  --bg-component: #27272a;
-  --bg-component-hover: rgba(255, 255, 255, 0.1);
-  --bg-base-hover: #27272a;
-  --bg-base-pressed: #3f3f46;
-  --bg-field: rgba(255, 255, 255, 0.04);
-  --bg-field-hover: rgba(255, 255, 255, 0.08);
-  --bg-overlay: rgba(24, 24, 27, 0.72);
-  --bg-switch-off: #3f3f46;
+  --bg-base: #ffffff;
+  --bg-subtle: #f8fafc;
+  --bg-component: #ffffff;
+  --bg-component-hover: #f1f5f9;
+  --bg-base-hover: #f1f5f9;
+  --bg-base-pressed: #e2e8f0;
+  --bg-field: #ffffff;
+  --bg-field-hover: #f8fafc;
+  --bg-overlay: rgba(15, 23, 42, 0.48);
+  --bg-switch-off: #cbd5e1;
 
-  --border-base: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --border-interactive: rgba(96, 165, 250, 1);
-  --border-error: rgba(251, 113, 133, 1);
-  --border-danger: rgba(190, 18, 60, 1);
+  --border-base: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-interactive: #171717;
+  --border-error: #f43f5e;
+  --border-danger: #dc2626;
   --border-transparent: rgba(255, 255, 255, 0);
 
-  --fg-base: #f4f4f5;
-  --fg-subtle: #a1a1aa;
-  --fg-muted: #71717a;
-  --fg-disabled: #52525b;
-  --fg-interactive: rgba(96, 165, 250, 1);
-  --fg-interactive-hover: rgba(147, 197, 253, 1);
-  --fg-error: rgba(251, 113, 133, 1);
+  --fg-base: #0f172a;
+  --fg-subtle: #334155;
+  --fg-muted: #64748b;
+  --fg-disabled: #94a3b8;
+  --fg-interactive: #171717;
+  --fg-interactive-hover: #404040;
+  --fg-error: #dc2626;
   --fg-on-color: #ffffff;
-  --fg-on-inverted: #18181b;
+  --fg-on-inverted: #ffffff;
 
-  --button-neutral: rgba(255, 255, 255, 0.04);
-  --button-neutral-hover: rgba(255, 255, 255, 0.08);
-  --button-neutral-pressed: rgba(255, 255, 255, 0.12);
-  --button-danger: rgba(159, 18, 57, 1);
-  --button-danger-hover: rgba(190, 18, 60, 1);
-  --button-inverted: #52525b;
-  --button-inverted-hover: #71717a;
+  --button-neutral: #ffffff;
+  --button-neutral-hover: #f1f5f9;
+  --button-neutral-pressed: #e2e8f0;
+  --button-danger: #dc2626;
+  --button-danger-hover: #b91c1c;
+  --button-inverted: #171717;
+  --button-inverted-hover: #404040;
 
-  --tag-neutral-bg: rgba(255, 255, 255, 0.08);
-  --tag-neutral-border: rgba(255, 255, 255, 0.06);
-  --tag-neutral-text: #d4d4d8;
-  --tag-neutral-icon: #71717a;
-  --tag-green-bg: rgba(2, 44, 34, 1);
-  --tag-green-border: rgba(6, 78, 59, 1);
-  --tag-green-text: rgba(52, 211, 153, 1);
-  --tag-red-bg: rgba(76, 5, 25, 1);
-  --tag-red-border: rgba(136, 19, 55, 1);
-  --tag-red-text: rgba(253, 164, 175, 1);
-  --tag-blue-bg: rgba(23, 37, 84, 1);
-  --tag-blue-border: rgba(30, 58, 138, 1);
-  --tag-blue-text: rgba(147, 197, 253, 1);
-  --tag-orange-bg: rgba(67, 20, 7, 1);
-  --tag-orange-border: rgba(124, 45, 18, 1);
-  --tag-orange-text: rgba(253, 186, 116, 1);
-  --tag-purple-bg: rgba(46, 16, 101, 1);
-  --tag-purple-border: rgba(91, 33, 182, 1);
-  --tag-purple-text: rgba(196, 181, 253, 1);
+  --tag-neutral-bg: #f8fafc;
+  --tag-neutral-border: #e2e8f0;
+  --tag-neutral-text: #334155;
+  --tag-neutral-icon: #64748b;
+  --tag-green-bg: #ecfdf5;
+  --tag-green-border: #bbf7d0;
+  --tag-green-text: #047857;
+  --tag-red-bg: #fef2f2;
+  --tag-red-border: #fecaca;
+  --tag-red-text: #b91c1c;
+  --tag-blue-bg: #eff6ff;
+  --tag-blue-border: #bfdbfe;
+  --tag-blue-text: #1d4ed8;
+  --tag-orange-bg: #fff7ed;
+  --tag-orange-border: #fed7aa;
+  --tag-orange-text: #c2410c;
+  --tag-purple-bg: #faf5ff;
+  --tag-purple-border: #e9d5ff;
+  --tag-purple-text: #7e22ce;
 }
 
 body {
-  background-color: var(--bg-subtle);
+  background-color: #f8fafc;
   color: var(--fg-base);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -74,11 +74,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(100, 116, 139, 0.28);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(100, 116, 139, 0.45);
 }
 
 /* Clickable elements get pointer cursor (Tailwind 4 resets <button> to default) */

@@ -11,19 +11,26 @@
 	let error = $state('');
 	let loading = $state(false);
 
+	// Dev-only quick login. import.meta.env.DEV is false in prod builds, so this
+	// list and the buttons below are dead-code-eliminated for production.
+	const DEV = import.meta.env.DEV;
+	const testAccounts = [
+		{ label: 'Admin', email: 'admin@paperio.test', password: 'admin12345' },
+		{ label: 'Sari (user)', email: 'sari@test.com', password: 'password123' }
+	];
+
 	const urlError = page.url.searchParams.get('error');
 	if (urlError === 'google_unconfigured') error = 'Google login belum dikonfigurasi.';
 	else if (urlError) error = 'Google login gagal. Coba lagi.';
 
-	async function submit(e: Event) {
-		e.preventDefault();
+	async function login(em: string, pw: string) {
 		error = '';
 		loading = true;
 		try {
 			const res = await fetch('/api/auth/login', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, password })
+				body: JSON.stringify({ email: em, password: pw })
 			});
 			const data = await res.json();
 			if (!res.ok) {
@@ -34,6 +41,11 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function submit(e: Event) {
+		e.preventDefault();
+		login(email, password);
 	}
 </script>
 
@@ -58,4 +70,25 @@
 		<a href="/auth/forgot" class="text-[var(--fg-muted)] hover:underline">Lupa password?</a>
 		<a href="/auth/register" class="text-[var(--fg-interactive)] hover:underline">Daftar</a>
 	</div>
+
+	{#if DEV}
+		<div class="mt-6 pt-4 border-t border-[var(--border-base)]">
+			<p class="text-[11px] uppercase tracking-wide text-[var(--fg-muted)] mb-2">
+				Dev quick login
+			</p>
+			<div class="flex gap-2">
+				{#each testAccounts as acc}
+					<Button
+						variant="neutral"
+						size="sm"
+						full
+						disabled={loading}
+						onclick={() => login(acc.email, acc.password)}
+					>
+						{acc.label}
+					</Button>
+				{/each}
+			</div>
+		</div>
+	{/if}
 </AuthShell>

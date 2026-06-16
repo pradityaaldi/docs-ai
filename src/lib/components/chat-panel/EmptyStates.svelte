@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
+	import { goto } from '$app/navigation';
 
 	interface Props {
 		isActive: boolean;
@@ -16,7 +17,7 @@
 		<p class="text-sm font-semibold text-[var(--fg-base)]">No project selected</p>
 		<p class="mt-1 max-w-[260px] text-xs leading-relaxed text-[var(--fg-muted)]">Select a project from the file panel or create a new one to start generating documents.</p>
 		<button
-			onclick={() => app.sidebarView = 'projects'}
+			onclick={() => goto('/app')}
 			class="mt-4 rounded-lg bg-[var(--fg-interactive)] px-4 py-2 text-sm font-medium text-[var(--fg-on-color)] transition-colors hover:bg-[var(--fg-interactive-hover)]"
 		>
 			Go to Projects

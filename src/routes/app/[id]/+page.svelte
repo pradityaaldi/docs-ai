@@ -1,33 +1,32 @@
 <script lang="ts">
 	import '../../../app.css';
-	import { loadAIStatus, enterProject } from '$lib/actions';
+	import { loadAIStatus, loadGlobalConversation } from '$lib/actions';
 	import { app } from '$lib/stores/app.svelte';
-	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
 	import DocumentPreview from '$lib/components/DocumentPreview.svelte';
 
 	let { data } = $props();
-	$effect(() => {
+
+	// Sync the server-loaded project into the shared workspace store. `$effect.pre`
+	// runs before paint, so the panes render populated on the first frame — no stale
+	// frame, no project-list flash. Reruns when `data` changes (switching projects).
+	$effect.pre(() => {
 		app.currentUser = data.user ?? null;
+		app.currentProject = data.project;
+		app.projectTree = data.tree;
+		app.rootDocuments = data.rootDocuments;
+		app.sidebarView = 'project-detail';
+		app.currentDoc = null;
+		app.messages = [];
+		app.expandedFolderIds = new Set();
+		app.navigatingFolderId = null;
+		loadGlobalConversation();
 	});
 
-	let booted = false;
+	// App-global, non-structural: AI provider status badge. Runs once on mount.
 	$effect(() => {
-		if (booted) return;
-		booted = true;
 		loadAIStatus();
-		const id = page.params.id;
-		fetch('/api/projects')
-			.then((r) => r.json())
-			.then((list) => {
-				app.projects = list;
-				const p = list.find((x: { id: string }) => x.id === id);
-				if (p) enterProject(p);
-				else goto('/app');
-			})
-			.catch(() => goto('/app'));
 	});
 </script>
 

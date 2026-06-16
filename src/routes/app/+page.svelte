@@ -8,29 +8,16 @@
 	import { FileTextIcon, FilesIcon, CloseIcon } from '$lib/components/ui/icons';
 
 	let { data } = $props();
-	app.currentUser = data.user ?? null;
 
-	let loading = $state(true);
 	let modalOpen = $state(false);
 	let newName = $state('');
 	let creating = $state(false);
 
-	// reset any stale workspace state when landing on the list
-	app.currentProject = null;
-
+	// Projects come from load(); sync into the store and reset stale workspace state.
 	$effect(() => {
-		let active = true;
-		fetch('/api/projects')
-			.then((r) => r.json())
-			.then((list) => {
-				if (active) app.projects = list;
-			})
-			.finally(() => {
-				if (active) loading = false;
-			});
-		return () => {
-			active = false;
-		};
+		app.currentUser = data.user ?? null;
+		app.currentProject = null;
+		app.projects = data.projects;
 	});
 
 	function openModal() {
@@ -66,9 +53,7 @@
 			<Button size="md" onclick={openModal}>+ Buat Project</Button>
 		</div>
 
-		{#if loading}
-			<p class="py-16 text-center text-sm text-[var(--fg-muted)]">Memuat…</p>
-		{:else if app.projects.length === 0}
+		{#if app.projects.length === 0}
 			<Card padding="lg" class="flex flex-col items-center gap-3 text-center">
 				<FilesIcon size={32} />
 				<div>

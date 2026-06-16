@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { app, type TreeNode, type DocEntry } from '$lib/stores/app.svelte';
-	import { createProject, deleteProject, enterProject, exitToProjects, createDocument, createFolder, selectDocument, deleteDocument, openRootChat, logout, generateProjectDoc } from '$lib/actions';
+	import { app } from '$lib/stores/app.svelte';
+	import { exitToProjects, createDocument, createFolder, selectDocument, deleteDocument, openRootChat, logout, generateProjectDoc } from '$lib/actions';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import TreeItem from '$lib/components/ui/TreeItem.svelte';
 
+	// Workspace sidebar = single project's files. The project list lives on /app.
 	let breadcrumbPath = $derived.by(() => {
 		const path: { id: string; name: string; type: 'project' | 'folder' }[] = [];
 		if (!app.currentProject) return path;
@@ -24,171 +25,98 @@
 <aside class="flex flex-1 flex-col justify-between overflow-y-auto">
 	<div class="flex flex-1 flex-col">
 		<div class="sticky top-0 z-10 bg-[var(--bg-base)]">
-			{#if app.sidebarView === 'projects'}
-				<div class="flex h-14 items-center gap-x-2.5 border-b border-[var(--border-base)] px-4">
-					<div class="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--fg-interactive)]">
-						<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h3l1-2h4l1 2h3v9H2V4z" fill="white" opacity="0.9"/></svg>
-					</div>
-					<div>
-						<span class="block text-sm font-semibold leading-none text-[var(--fg-base)]">Paperio</span>
-						<span class="mt-1 block text-[11px] text-[var(--fg-muted)]">AI document workspace</span>
+			<div class="border-b border-[var(--border-base)]">
+				<div class="flex h-14 items-center gap-x-2 px-4">
+					<a
+						href="/app"
+						class="-ml-1 inline-flex items-center rounded-md p-1 text-[var(--fg-subtle)] transition-colors hover:bg-[var(--bg-base-hover)] hover:text-[var(--fg-base)]"
+						title="Back to projects"
+					>
+						<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					</a>
+					<div class="min-w-0">
+						<span class="block truncate text-sm font-semibold leading-none text-[var(--fg-base)]">{app.currentProject?.name || ''}</span>
+						<span class="mt-1 block text-[11px] text-[var(--fg-muted)]">Project files</span>
 					</div>
 				</div>
-			{:else}
-				<div class="border-b border-[var(--border-base)]">
-					<div class="flex h-14 items-center gap-x-2 px-4">
-						<button
-							onclick={exitToProjects}
-							class="-ml-1 rounded-md p-1 text-[var(--fg-subtle)] transition-colors hover:bg-[var(--bg-base-hover)] hover:text-[var(--fg-base)]"
-							title="Back to projects"
-						>
-							<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-						</button>
-						<div class="min-w-0">
-							<span class="block truncate text-sm font-semibold leading-none text-[var(--fg-base)]">{app.currentProject?.name || ''}</span>
-							<span class="mt-1 block text-[11px] text-[var(--fg-muted)]">Project files</span>
-						</div>
-					</div>
-					<Breadcrumb path={breadcrumbPath} onNavigate={(i) => {
-						if (i === -1) exitToProjects();
-					}} />
-				</div>
-			{/if}
+				<Breadcrumb path={breadcrumbPath} onNavigate={(i) => {
+					if (i === -1) exitToProjects();
+				}} />
+			</div>
 		</div>
 
 		<div class="flex flex-1 flex-col justify-between">
 			<div class="flex flex-1 flex-col">
-				{#if app.sidebarView === 'projects'}
-					<!-- Projects View -->
-					<div class="flex flex-col gap-y-1 px-3 pt-3">
-						<a
-							href="/templates"
-							class="flex w-full items-center gap-x-2 rounded-lg bg-[var(--fg-interactive)] px-3 py-2 text-sm font-medium text-[var(--fg-on-color)] outline-none transition-colors hover:bg-[var(--fg-interactive-hover)]"
-						>
-							<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h5v5H2V3zM9 3h5v5H9V3zM2 9h5v4H2V9zM9 9h5v4H9V9z" stroke="currentColor" stroke-width="1.3"/></svg>
-							Galeri Template
-						</a>
+				<div class="flex flex-col gap-y-1 px-3 pt-3">
+					{#if app.currentProject?.template_id}
 						<button
-							onclick={createProject}
-							class="flex w-full items-center gap-x-2 rounded-lg px-3 py-2 text-sm text-[var(--fg-subtle)] outline-none transition-colors hover:bg-[var(--bg-base-hover)]"
+							onclick={generateProjectDoc}
+							disabled={app.isGenerating}
+							class="flex w-full items-center gap-x-2 rounded-lg bg-[var(--fg-interactive)] px-3 py-2 text-sm font-medium text-[var(--fg-on-color)] outline-none transition-colors hover:bg-[var(--fg-interactive-hover)] disabled:opacity-50"
 						>
-							<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-							Project Kosong
+							<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8L8 1z" fill="currentColor"/></svg>
+							{app.isGenerating ? 'Membuat…' : (app.currentProject?.status === 'belum mulai' ? 'Generate Dokumen' : 'Regenerate')}
 						</button>
-					</div>
+					{/if}
+					<button
+						onclick={() => createDocument(null)}
+						class="flex w-full items-center gap-x-2 rounded-lg px-3 py-2 text-sm text-[var(--fg-subtle)] outline-none transition-colors hover:bg-[var(--bg-base-hover)]"
+					>
+						<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 2h8l2 2v10H2V4l2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M8 6v4M6 8h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+						New Document
+					</button>
+					<button
+						onclick={() => createFolder(null)}
+						class="flex w-full items-center gap-x-2 rounded-lg px-3 py-2 text-sm text-[var(--fg-subtle)] outline-none transition-colors hover:bg-[var(--bg-base-hover)]"
+					>
+						<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h4.5l1.5 1.5H14v7H2V4z" fill="currentColor" opacity="0.3"/><path d="M2 4h4.5l1.5 1.5H14v7H2V4z" stroke="currentColor" stroke-width="1.2"/><path d="M9 7v4M7 9h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+						New Folder
+					</button>
+					<button
+						onclick={openRootChat}
+						class="flex w-full items-center gap-x-2 rounded-lg px-3 py-2 text-sm outline-none transition-colors {app.currentDoc?.id === app.globalConversation?.id ? 'bg-[var(--bg-subtle)] text-[var(--fg-base)] ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
+					>
+						<svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="shrink-0"><path d="M2 3h12v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3z" stroke="currentColor" stroke-width="1.2"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+						Root Chat
+					</button>
+				</div>
 
-					<div class="px-3 py-2">
-						<p class="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--fg-muted)]">Projects</p>
-						<div class="flex flex-col gap-y-0.5">
-							{#each app.projects as project (project.id)}
-								<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-								<div
-									class="group flex cursor-pointer items-center gap-x-2 rounded-lg py-2 pl-2 pr-1.5 text-sm text-[var(--fg-subtle)] outline-none transition-colors hover:bg-[var(--bg-base-hover)] {app.currentProject?.id === project.id ? 'bg-[var(--bg-subtle)] text-[var(--fg-base)] ring-1 ring-[var(--border-base)]' : ''}"
-									onclick={() => enterProject(project)}
-									role="button"
-									tabindex="0"
-									onkeydown={(e) => e.key === 'Enter' && enterProject(project)}
-								>
-									<svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="shrink-0">
-										<path d="M2 4h4.5l1.5 1.5H14v7H2V4z" fill="currentColor" opacity="0.3"/>
-										<path d="M2 4h4.5l1.5 1.5H14v7H2V4z" stroke="currentColor" stroke-width="1.2"/>
-									</svg>
-									<div class="flex-1 min-w-0 flex flex-col">
-										<span class="truncate">{project.name}</span>
-										<span class="text-xs text-[var(--fg-muted)]">
-											{#if project.status}<span class="capitalize">{project.status}</span> · {/if}{new Date(project.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-										</span>
-									</div>
-									<button
-										onclick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
-										aria-label="Delete project"
-										class="opacity-0 group-hover:opacity-100 p-1 text-[var(--fg-muted)] hover:text-[var(--fg-error)] transition-all cursor-pointer rounded"
-									>
-										<svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V3h4v1M4 4v7a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-									</button>
-								</div>
-							{/each}
-							{#if app.projects.length === 0}
-								<div class="text-center py-6 px-2">
-									<p class="text-xs text-[var(--fg-muted)]">No projects yet</p>
-								</div>
-							{/if}
-						</div>
-					</div>
-				{:else}
-					<!-- Project Detail View -->
-					<div class="flex flex-col gap-y-1 px-3 pt-3">
-						{#if app.currentProject?.template_id}
-							<button
-								onclick={generateProjectDoc}
-								disabled={app.isGenerating}
-								class="flex w-full items-center gap-x-2 rounded-lg bg-[var(--fg-interactive)] px-3 py-2 text-sm font-medium text-[var(--fg-on-color)] outline-none transition-colors hover:bg-[var(--fg-interactive-hover)] disabled:opacity-50"
+				<div class="px-3 py-2">
+					<p class="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--fg-muted)]">Files</p>
+					<div class="flex flex-col gap-y-0.5">
+						{#each app.rootDocuments as doc (doc.id)}
+							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+							<div
+								class="group flex cursor-pointer items-center gap-x-1.5 rounded-lg py-1.5 pl-2 pr-1 text-sm transition-colors {app.currentDoc?.id === doc.id ? 'bg-[var(--bg-subtle)] text-[var(--fg-base)] ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
+								onclick={() => onSelectDocument(doc.id)}
+								role="button"
+								tabindex="0"
+								onkeydown={(e) => e.key === 'Enter' && onSelectDocument(doc.id)}
 							>
-								<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8L8 1z" fill="currentColor"/></svg>
-								{app.isGenerating ? 'Membuat…' : (app.currentProject?.status === 'belum mulai' ? 'Generate Dokumen' : 'Regenerate')}
-							</button>
-						{/if}
-						<button
-							onclick={() => createDocument(null)}
-							class="flex w-full items-center gap-x-2 rounded-lg px-3 py-2 text-sm text-[var(--fg-subtle)] outline-none transition-colors hover:bg-[var(--bg-base-hover)]"
-						>
-							<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 2h8l2 2v10H2V4l2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M8 6v4M6 8h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-							New Document
-						</button>
-						<button
-							onclick={() => createFolder(null)}
-							class="flex w-full items-center gap-x-2 rounded-lg px-3 py-2 text-sm text-[var(--fg-subtle)] outline-none transition-colors hover:bg-[var(--bg-base-hover)]"
-						>
-							<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h4.5l1.5 1.5H14v7H2V4z" fill="currentColor" opacity="0.3"/><path d="M2 4h4.5l1.5 1.5H14v7H2V4z" stroke="currentColor" stroke-width="1.2"/><path d="M9 7v4M7 9h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-							New Folder
-						</button>
-						<button
-							onclick={openRootChat}
-							class="flex w-full items-center gap-x-2 rounded-lg px-3 py-2 text-sm outline-none transition-colors {app.currentDoc?.id === app.globalConversation?.id ? 'bg-[var(--bg-subtle)] text-[var(--fg-base)] ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
-						>
-							<svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="shrink-0"><path d="M2 3h12v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3z" stroke="currentColor" stroke-width="1.2"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
-							Root Chat
-						</button>
-					</div>
-
-					<div class="px-3 py-2">
-						<p class="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--fg-muted)]">Files</p>
-						<div class="flex flex-col gap-y-0.5">
-							{#each app.rootDocuments as doc (doc.id)}
-								<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-								<div
-									class="group flex cursor-pointer items-center gap-x-1.5 rounded-lg py-1.5 pl-2 pr-1 text-sm transition-colors {app.currentDoc?.id === doc.id ? 'bg-[var(--bg-subtle)] text-[var(--fg-base)] ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
-									onclick={() => onSelectDocument(doc.id)}
-									role="button"
-									tabindex="0"
-									onkeydown={(e) => e.key === 'Enter' && onSelectDocument(doc.id)}
+								<svg width="12" height="12" viewBox="0 0 16 16" fill="none" class="shrink-0"><path d="M4 2h8l2 2v10H2V4l2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M6 7h6M6 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+								<span class="flex-1 min-w-0 truncate">{doc.title}</span>
+								<button
+									onclick={(e) => { e.stopPropagation(); deleteDocument(doc.id); }}
+									aria-label="Delete document"
+									class="hidden group-hover:block p-1 text-[var(--fg-muted)] hover:text-[var(--fg-error)] cursor-pointer rounded"
 								>
-									<svg width="12" height="12" viewBox="0 0 16 16" fill="none" class="shrink-0"><path d="M4 2h8l2 2v10H2V4l2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M6 7h6M6 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
-									<span class="flex-1 min-w-0 truncate">{doc.title}</span>
-									<button
-										onclick={(e) => { e.stopPropagation(); deleteDocument(doc.id); }}
-										aria-label="Delete document"
-										class="hidden group-hover:block p-1 text-[var(--fg-muted)] hover:text-[var(--fg-error)] cursor-pointer rounded"
-									>
-										<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V3h4v1M4 4v7a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-									</button>
-								</div>
-							{/each}
+									<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V3h4v1M4 4v7a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+								</button>
+							</div>
+						{/each}
 
-							{#each app.projectTree as node (node.id)}
-								<TreeItem {node} onNavigateInto={handleNavigateIntoFolder} />
-							{/each}
+						{#each app.projectTree as node (node.id)}
+							<TreeItem {node} onNavigateInto={handleNavigateIntoFolder} />
+						{/each}
 
-							{#if app.projectTree.length === 0 && app.rootDocuments.length === 0}
-								<div class="text-center py-6 px-2">
-									<p class="text-xs text-[var(--fg-muted)]">No documents yet</p>
-								</div>
-							{/if}
-						</div>
+						{#if app.projectTree.length === 0 && app.rootDocuments.length === 0}
+							<div class="text-center py-6 px-2">
+								<p class="text-xs text-[var(--fg-muted)]">No documents yet</p>
+							</div>
+						{/if}
 					</div>
-				{/if}
+				</div>
 			</div>
-
 		</div>
 	</div>
 

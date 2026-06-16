@@ -142,7 +142,7 @@
 		{/if}
 	</div>
 
-	<div class="relative flex-1 bg-[linear-gradient(#f8fafc_1px,transparent_1px),linear-gradient(90deg,#f8fafc_1px,transparent_1px)] [background-size:28px_28px]">
+	<div class="relative flex-1 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:28px_28px]">
 		<div class="absolute inset-0 space-y-5 overflow-y-auto px-5 py-5" bind:this={scrollContainer} onscroll={handleScroll}>
 			<EmptyStates {isActive} />
 

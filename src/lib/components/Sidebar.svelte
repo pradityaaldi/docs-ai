@@ -3,6 +3,7 @@
 	import { exitToProjects, createDocument, createFolder, selectDocument, deleteDocument, openRootChat, logout, generateProjectDoc } from '$lib/actions';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import TreeItem from '$lib/components/ui/TreeItem.svelte';
+	import FileRow from '$lib/components/ui/FileRow.svelte';
 
 	// Workspace sidebar = single project's files. The project list lives on /app.
 	let breadcrumbPath = $derived.by(() => {
@@ -85,24 +86,12 @@
 					<p class="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--fg-muted)]">Files</p>
 					<div class="flex flex-col gap-y-0.5">
 						{#each app.rootDocuments as doc (doc.id)}
-							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-							<div
-								class="group flex cursor-pointer items-center gap-x-1.5 rounded-lg py-1.5 pl-2 pr-1 text-sm transition-colors {app.currentDoc?.id === doc.id ? 'bg-[var(--bg-subtle)] text-[var(--fg-base)] ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
-								onclick={() => onSelectDocument(doc.id)}
-								role="button"
-								tabindex="0"
-								onkeydown={(e) => e.key === 'Enter' && onSelectDocument(doc.id)}
-							>
-								<svg width="12" height="12" viewBox="0 0 16 16" fill="none" class="shrink-0"><path d="M4 2h8l2 2v10H2V4l2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M6 7h6M6 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
-								<span class="flex-1 min-w-0 truncate">{doc.title}</span>
-								<button
-									onclick={(e) => { e.stopPropagation(); deleteDocument(doc.id); }}
-									aria-label="Delete document"
-									class="hidden group-hover:block p-1 text-[var(--fg-muted)] hover:text-[var(--fg-error)] cursor-pointer rounded"
-								>
-									<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V3h4v1M4 4v7a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-								</button>
-							</div>
+							<FileRow
+								id={doc.id}
+								title={doc.title}
+								onSelect={onSelectDocument}
+								onDelete={(id) => deleteDocument(id)}
+							/>
 						{/each}
 
 						{#each app.projectTree as node (node.id)}

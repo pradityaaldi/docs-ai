@@ -13,4 +13,7 @@ export { default as StatCard } from './StatCard.svelte';
 export { default as Tabs } from './Tabs.svelte';
 export { default as Textarea } from './Textarea.svelte';
 export { default as TreeItem } from './TreeItem.svelte';
+export { default as TreeRow } from './TreeRow.svelte';
+export { default as TreeAction } from './TreeAction.svelte';
+export { default as FileRow } from './FileRow.svelte';
 export * from './icons';

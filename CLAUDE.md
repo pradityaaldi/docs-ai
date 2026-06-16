@@ -107,6 +107,39 @@ import { Button, Input, Card, Alert, PageHeader, Tabs } from '$lib/components/ui
 When a markup pattern repeats across pages, extract a primitive into `ui/` and add it to
 `ui/index.ts` rather than copy-pasting.
 
+## Modularity & reuse
+
+Keep code modular. One file = one concern. Do not let logic pile up in a single file.
+
+**Hard rules**
+
+- **Size budget.** Soft cap ~250 lines per file; ~300 is a hard ceiling. A file past this is a
+  refactor signal, not "done". `+page.svelte` / `+server.ts` route files: keep thin — move real
+  logic into `$lib`.
+- **Split by concern, not by line count.** When a file grows, break it along natural seams
+  (per-provider, per-domain, per-element type), each seam its own file. Don't blindly chop in half.
+- **Folder + barrel pattern.** Turn a big module `x.ts` into a `x/` folder of focused files plus
+  `x/index.ts` that re-exports the public API. Import sites keep using `$lib/.../x` unchanged.
+  Used by `components/ui/` and `ui/icons/` already — follow the same shape for server/lib modules.
+- **One function, one job.** A function that does fetch + parse + state-update + DOM is three
+  functions. Extract pure helpers (parsing, formatting, transforms) so they're testable and reusable.
+- **DRY.** Same logic in 2+ places → extract a shared helper. Provider/format/element switch
+  branches that share scaffolding → table-driven or one helper per branch, not copy-paste.
+- **Reuse first.** Before writing new code, check for an existing primitive/helper
+  (`ui/`, `lib/shared/`, `lib/server/`). Extend or import it; don't re-hand-roll.
+- **Public surface via barrel.** Each module folder exposes its API through `index.ts`. Internal
+  files are implementation detail — don't import across module internals, go through the barrel.
+
+**Where things live**
+
+- `lib/shared/` — isomorphic pure helpers (no DB, no DOM). Reusable client + server.
+- `lib/server/` — server-only logic, one folder per subsystem when it grows (e.g. `ai/`, `docx/`).
+- `lib/components/ui/` — design-system primitives. `lib/components/<Feature>/` — feature components;
+  split a fat component into subcomponents + a pure render/transform helper file.
+- `lib/actions/` — frontend action helpers, one file per domain (projects, documents, chat, export).
+
+When a file crosses the budget or mixes concerns, refactor it the same way: extract, barrel, reuse.
+
 ## Architecture notes
 
 - **Server vs client**: anything in `lib/server/` is server-only (DB, secrets, AI keys).

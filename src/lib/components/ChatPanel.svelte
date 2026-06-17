@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
-	import { sendMessage, sendProjectMessage, stopGeneration, clearMessages } from '$lib/actions';
+	import { sendProjectMessage, stopGeneration, clearMessages } from '$lib/actions';
 	import { fmtElapsed } from './chat-panel/status';
 	import ChatMessage from './chat-panel/ChatMessage.svelte';
 	import EmptyStates from './chat-panel/EmptyStates.svelte';
@@ -75,10 +75,6 @@
 			} else if (val === '/stop') {
 				stopGeneration();
 				app.chatInput = '';
-			} else if (app.currentDoc?.id === app.globalConversation?.id) {
-				sendProjectMessage();
-			} else if (app.currentDoc) {
-				sendMessage();
 			} else if (app.currentProject) {
 				sendProjectMessage();
 			}
@@ -172,7 +168,7 @@
 					t.style.height = 'auto';
 					t.style.height = Math.min(t.scrollHeight, 160) + 'px';
 				}}
-				placeholder={isActive ? 'AI is working...' : app.currentProject ? (app.currentDoc ? 'Type a message...' : 'Describe what you want to create...') : 'Select a project first'}
+				placeholder={isActive ? 'AI is working...' : app.currentProject ? 'Describe what you want to create...' : 'Select a project first'}
 				class="block max-h-40 min-h-[78px] w-full resize-none rounded-t-xl bg-transparent px-3.5 py-3 text-sm text-[var(--fg-base)] placeholder-[var(--fg-disabled)] outline-none transition-all"
 				rows="1"
 				disabled={!app.aiReady || !app.currentProject || isActive}
@@ -192,7 +188,7 @@
 					</button>
 				{:else}
 					<button
-						onclick={() => (app.currentDoc?.id === app.globalConversation?.id) ? sendProjectMessage() : sendMessage()}
+						onclick={sendProjectMessage}
 						disabled={!app.chatInput.trim() || !app.aiReady || !app.currentProject}
 						class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--fg-interactive)] px-3 py-2 text-sm font-medium text-[var(--fg-on-color)] transition-colors hover:bg-[var(--fg-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-40"
 					>

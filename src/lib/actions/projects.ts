@@ -106,11 +106,3 @@ export function exitToProjects() {
 	app.navigatingFolderId = null;
 	goto('/app');
 }
-
-export async function openRootChat() {
-	if (!app.globalConversation) return;
-	app.navigatingFolderId = null;
-	app.currentDoc = app.globalConversation;
-	const msgRes = await fetch(`/api/documents/${app.globalConversation.id}/messages`);
-	app.messages = await msgRes.json();
-}

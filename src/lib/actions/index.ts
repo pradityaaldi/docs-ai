@@ -8,7 +8,6 @@ export {
 	enterProject,
 	loadGlobalConversation,
 	exitToProjects,
-	openRootChat,
 	refreshTree
 } from './projects';
 export { createFolder, deleteFolder, loadFolderContents } from './folders';
@@ -21,7 +20,6 @@ export {
 	clearMessages
 } from './documents';
 export {
-	sendMessage,
 	sendProjectMessage,
 	generateProjectDoc,
 	stopGeneration

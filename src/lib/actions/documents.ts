@@ -12,12 +12,12 @@ export async function loadDocuments() {
 }
 
 export async function selectDocument(doc: { id: string; title?: string }) {
+	// Documents are preview-only now — chat lives on the project root conversation,
+	// so selecting a document must not touch app.messages.
 	const res = await fetch(`/api/documents/${doc.id}`);
 	if (res.ok) {
 		app.currentDoc = await res.json();
 	}
-	const msgRes = await fetch(`/api/documents/${doc.id}/messages`);
-	app.messages = await msgRes.json();
 }
 
 export async function createDocument(folderId: string | null = null) {
@@ -66,7 +66,6 @@ export async function deleteDocument(id: string): Promise<boolean> {
 	await fetch(`/api/documents/${id}`, { method: 'DELETE' });
 	if (app.currentDoc?.id === id) {
 		app.currentDoc = null;
-		app.messages = [];
 	}
 	if (app.sidebarView === 'project-detail') {
 		await refreshTree();
@@ -87,8 +86,8 @@ function removeDocFromTree(nodes: typeof app.projectTree, docId: string): typeof
 }
 
 export async function clearMessages() {
-	if (!app.currentDoc) return;
-	await fetch(`/api/documents/${app.currentDoc.id}/messages`, { method: 'DELETE' });
+	// Clears the project root conversation (the only chat there is now).
+	if (!app.globalConversation) return;
+	await fetch(`/api/documents/${app.globalConversation.id}/messages`, { method: 'DELETE' });
 	app.messages = [];
-	app.currentDoc = { ...app.currentDoc, content: '' };
 }

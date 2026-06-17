@@ -1,18 +1,11 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
 	import { exitToProjects, createDocument, createFolder, selectDocument, deleteDocument, logout, generateProjectDoc } from '$lib/actions';
-	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import TreeItem from '$lib/components/ui/TreeItem.svelte';
 	import FileRow from '$lib/components/ui/FileRow.svelte';
+	import { ArrowLeftIcon } from '$lib/components/ui/icons';
 
 	// Workspace sidebar = single project's files. The project list lives on /app.
-	let breadcrumbPath = $derived.by(() => {
-		const path: { id: string; name: string; type: 'project' | 'folder' }[] = [];
-		if (!app.currentProject) return path;
-		path.push({ id: app.currentProject.id, name: app.currentProject.name, type: 'project' });
-		return path;
-	});
-
 	function handleNavigateIntoFolder(folderId: string | null) {
 		app.navigatingFolderId = folderId;
 	}
@@ -27,22 +20,16 @@
 	<div class="flex flex-1 flex-col">
 		<div class="sticky top-0 z-10 bg-[var(--bg-base)]">
 			<div class="border-b border-[var(--border-base)]">
-				<div class="flex h-14 items-center gap-x-2 px-4">
-					<a
-						href="/app"
-						class="-ml-1 inline-flex items-center rounded-md p-1 text-[var(--fg-subtle)] transition-colors hover:bg-[var(--bg-base-hover)] hover:text-[var(--fg-base)]"
-						title="Back to projects"
+				<div class="flex h-14 items-center px-4">
+					<button
+						onclick={exitToProjects}
+						class="-ml-2 inline-flex items-center gap-x-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-[var(--fg-subtle)] transition-colors hover:bg-[var(--bg-base-hover)] hover:text-[var(--fg-base)]"
+						title="Kembali ke daftar project"
 					>
-						<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-					</a>
-					<div class="min-w-0">
-						<span class="block truncate text-sm font-semibold leading-none text-[var(--fg-base)]">{app.currentProject?.name || ''}</span>
-						<span class="mt-1 block text-[11px] text-[var(--fg-muted)]">Project files</span>
-					</div>
+						<ArrowLeftIcon size={16} />
+						Keluar
+					</button>
 				</div>
-				<Breadcrumb path={breadcrumbPath} onNavigate={(i) => {
-					if (i === -1) exitToProjects();
-				}} />
 			</div>
 		</div>
 

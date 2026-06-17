@@ -5,6 +5,7 @@ export {
 	createProject,
 	createProjectNamed,
 	deleteProject,
+	renameProject,
 	enterProject,
 	loadGlobalConversation,
 	exitToProjects,

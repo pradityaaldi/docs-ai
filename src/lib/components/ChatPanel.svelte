@@ -1,12 +1,41 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
-	import { sendProjectMessage, stopGeneration, clearMessages } from '$lib/actions';
+	import { sendProjectMessage, stopGeneration, clearMessages, renameProject } from '$lib/actions';
+	import { PencilIcon } from '$lib/components/ui/icons';
 	import { fmtElapsed } from './chat-panel/status';
 	import ChatMessage from './chat-panel/ChatMessage.svelte';
 	import EmptyStates from './chat-panel/EmptyStates.svelte';
 
 	let scrollContainer = $state<HTMLDivElement>();
 	let autoScroll = $state(true);
+
+	// Inline project rename in the header.
+	let editingName = $state(false);
+	let nameDraft = $state('');
+
+	function startEditName() {
+		if (!app.currentProject) return;
+		nameDraft = app.currentProject.name;
+		editingName = true;
+	}
+	async function saveName() {
+		if (!editingName || !app.currentProject) return;
+		editingName = false;
+		await renameProject(app.currentProject.id, nameDraft);
+	}
+	function nameKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			saveName();
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			editingName = false;
+		}
+	}
+	function focusOnMount(node: HTMLInputElement) {
+		node.focus();
+		node.select();
+	}
 	let showScrollButton = $state(false);
 	let textareaRef = $state<HTMLTextAreaElement>();
 	let now = $state(Date.now());
@@ -122,10 +151,30 @@
 			<div class="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-base)] bg-[var(--bg-subtle)]">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
 			</div>
-			<div>
-				<h2 class="text-sm font-semibold leading-none text-[var(--fg-base)]">Conversation</h2>
-				<p class="mt-1 text-[11px] text-[var(--fg-muted)]">Document generation agent</p>
-			</div>
+			{#if editingName}
+				<input
+					bind:value={nameDraft}
+					onkeydown={nameKeydown}
+					onblur={saveName}
+					use:focusOnMount
+					maxlength="120"
+					class="w-56 rounded-md border border-[var(--border-base)] bg-[var(--bg-component)] px-2 py-1 text-sm font-semibold text-[var(--fg-base)] outline-none focus:border-[var(--fg-interactive)]"
+				/>
+			{:else}
+				<div class="flex min-w-0 items-center gap-1.5">
+					<h2 class="truncate text-sm font-semibold leading-none text-[var(--fg-base)]">{app.currentProject?.name || 'Conversation'}</h2>
+					{#if app.currentProject}
+						<button
+							onclick={startEditName}
+							class="shrink-0 rounded p-1 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-base-hover)] hover:text-[var(--fg-base)]"
+							title="Ubah nama project"
+							aria-label="Ubah nama project"
+						>
+							<PencilIcon size={13} />
+						</button>
+					{/if}
+				</div>
+			{/if}
 			{#if !app.aiReady}
 				<span class="rounded-full border border-[var(--tag-red-border)] bg-[var(--tag-red-bg)] px-2 py-0.5 text-[10px] text-[var(--tag-red-text)]">AI not configured</span>
 			{/if}

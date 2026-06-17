@@ -18,3 +18,4 @@ export { default as FolderOpenIcon } from './FolderOpen.svelte';
 export { default as FilePlusIcon } from './FilePlus.svelte';
 export { default as FolderPlusIcon } from './FolderPlus.svelte';
 export { default as TrashIcon } from './Trash.svelte';
+export { default as PencilIcon } from './Pencil.svelte';

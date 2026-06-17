@@ -45,6 +45,24 @@ export async function createProjectNamed(name: string): Promise<typeof app.proje
 	return project;
 }
 
+// Rename a project via the PUT endpoint. Updates currentProject + list in place.
+export async function renameProject(id: string, name: string): Promise<boolean> {
+	const trimmed = name.trim();
+	if (!trimmed) return false;
+	const res = await fetch(`/api/projects/${id}`, {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ name: trimmed })
+	});
+	if (!res.ok) return false;
+	const updated = await res.json();
+	if (app.currentProject?.id === id) {
+		app.currentProject = { ...app.currentProject, name: updated.name };
+	}
+	app.projects = app.projects.map((p) => (p.id === id ? { ...p, name: updated.name } : p));
+	return true;
+}
+
 export async function deleteProject(id: string) {
 	const ok = await confirmAction({
 		title: 'Hapus Project',

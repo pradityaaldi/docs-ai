@@ -198,7 +198,7 @@
 
 		<button
 			onclick={() => scrollToBottom()}
-			class="absolute bottom-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-base)] bg-[var(--bg-component)] shadow-lg transition-all duration-300 hover:bg-[var(--bg-component-hover)] {showScrollButton ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-90 pointer-events-none'}"
+			class="absolute bottom-4 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[var(--border-base)] bg-[var(--bg-component)] shadow-lg transition-all duration-300 hover:bg-[var(--bg-component-hover)] {showScrollButton ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-90 pointer-events-none'}"
 			title="Scroll to bottom"
 			aria-label="Scroll to bottom"
 		>

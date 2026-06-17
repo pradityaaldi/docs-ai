@@ -212,9 +212,9 @@ export const documents = pgTable('documents', {
 
 export const messages = pgTable('messages', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	documentId: uuid('document_id')
-		.notNull()
-		.references(() => documents.id, { onDelete: 'cascade' }),
+	// Chat is per-project now; documentId kept nullable for legacy rows.
+	documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
+	projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
 	role: text('role', { enum: ['user', 'assistant'] }).notNull(),
 	content: text('content').notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()

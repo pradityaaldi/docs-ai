@@ -4,7 +4,7 @@ import { DEFAULT_META, PAGE_SIZES, type DocxDocument } from './types';
 import { renderElement } from './elements';
 
 export type { DocxDocument, DocxContent, DocxMeta, DocxRun } from './types';
-export { parseDocumentBlocks, validateBlocks, extractJson, cleanJson, type ParseResult } from './parse';
+export { parseDocumentBlocks, parseDocxDocument, validateBlocks, extractJson, cleanJson, type ParseResult, type DocResult } from './parse';
 
 export function docxJsonToDocument(json: DocxDocument): Document {
 	const meta = { ...DEFAULT_META, ...json.meta };

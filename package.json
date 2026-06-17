@@ -36,6 +36,7 @@
     "codemirror": "^6.0.2",
     "docx": "^9.0.0",
     "drizzle-orm": "^0.45.2",
+    "jsonrepair": "^3.14.0",
     "marked": "^15.0.0",
     "pdfkit": "^0.15.0",
     "postgres": "^3.4.9",

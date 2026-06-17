@@ -103,8 +103,11 @@ function removeDocFromTree(nodes: typeof app.projectTree, docId: string): typeof
 }
 
 export async function clearMessages() {
-	// Clears the project root conversation (the only chat there is now).
-	if (!app.globalConversation) return;
-	await fetch(`/api/documents/${app.globalConversation.id}/messages`, { method: 'DELETE' });
+	// Wipe the current project's conversation context (chat is per-project).
+	if (!app.currentProject) return;
+	await fetch(`/api/projects/${app.currentProject.id}/messages`, { method: 'DELETE' });
 	app.messages = [];
+	app.mentions = [];
+	app.selectMode = false;
+	app.selectedMsgIds = [];
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../../../app.css';
-	import { loadAIStatus, loadGlobalConversation } from '$lib/actions';
+	import { loadAIStatus, loadProjectMessages } from '$lib/actions';
 	import { app } from '$lib/stores/app.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
@@ -19,9 +19,10 @@
 		app.sidebarView = 'project-detail';
 		app.currentDoc = null;
 		app.messages = [];
+		app.mentions = [];
 		app.expandedFolderIds = new Set();
 		app.navigatingFolderId = null;
-		loadGlobalConversation();
+		loadProjectMessages(data.project.id);
 	});
 
 	// App-global, non-structural: AI provider status badge. Runs once on mount.

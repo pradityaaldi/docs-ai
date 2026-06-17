@@ -7,7 +7,7 @@ export {
 	deleteProject,
 	renameProject,
 	enterProject,
-	loadGlobalConversation,
+	loadProjectMessages,
 	exitToProjects,
 	refreshTree
 } from './projects';
@@ -24,6 +24,12 @@ export {
 export {
 	sendProjectMessage,
 	generateProjectDoc,
-	stopGeneration
+	stopGeneration,
+	mentionItems,
+	toggleSelectMode,
+	toggleMessageSelected,
+	selectAllMessages,
+	clearSelection,
+	copySelectedMessages
 } from './chat';
 export { exportDocx, exportPdf } from './export';

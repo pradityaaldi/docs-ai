@@ -56,10 +56,18 @@ export interface Document {
 
 export interface Message {
 	id: string;
-	document_id: string;
+	document_id?: string | null;
+	project_id?: string | null;
 	role: 'user' | 'assistant';
 	content: string;
 	created_at: string;
+}
+
+// A file/folder the user can @-mention in chat.
+export interface MentionItem {
+	id: string;
+	title: string;
+	type: 'file' | 'folder';
 }
 
 export type ChatPhase =
@@ -118,9 +126,13 @@ export const app = $state({
 	currentProject: null as Project | null,
 	projectTree: [] as TreeNode[],
 	rootDocuments: [] as DocEntry[],
-	globalConversation: null as Document | null,
 	currentDoc: null as Document | null,
 	messages: [] as Message[],
+	// Files @-mentioned in the composer, attached to the next message.
+	mentions: [] as MentionItem[],
+	// Multi-select mode for copying chunks of the conversation.
+	selectMode: false,
+	selectedMsgIds: [] as string[],
 	sidebarView: 'projects' as 'projects' | 'project-detail',
 	expandedFolderIds: new Set<string>(),
 	navigatingFolderId: null as string | null,

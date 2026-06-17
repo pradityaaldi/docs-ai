@@ -1,7 +1,7 @@
 import { db, projects, documents } from '$lib/server/db';
 import { eq, and } from 'drizzle-orm';
 import type { ToolCall, ToolDefinition } from '$lib/server/ai';
-import { cleanContentJson } from './clean-json';
+import { parseDocxDocument } from '$lib/server/docx';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
@@ -54,18 +54,13 @@ export async function executeToolCall(toolCall: ToolCall, projectId: string): Pr
 	switch (toolCall.name) {
 		case 'create_document': {
 			const title = (args.title || 'Untitled Document').trim();
-			const contentJson = cleanContentJson(args.content_json || '');
-
-			let parsed: any;
-			try {
-				parsed = JSON.parse(contentJson);
-			} catch {
+			// Tolerant recovery: repairs reasoning/fences/broken JSON, validates blocks.
+			const { doc, repaired, warnings } = parseDocxDocument(args.content_json || '');
+			if (!doc) {
 				return { result: JSON.stringify({ success: false, error: 'Invalid JSON content' }) };
 			}
-
-			if (!parsed.meta || !parsed.content) {
-				return { result: JSON.stringify({ success: false, error: 'Content must have meta and content fields' }) };
-			}
+			if (repaired) console.log(`[TOOLS] create_document recovered malformed JSON (${warnings.length} warnings)`);
+			const contentJson = JSON.stringify(doc);
 
 			const folderId = args.folder_id || null;
 
@@ -90,11 +85,12 @@ export async function executeToolCall(toolCall: ToolCall, projectId: string): Pr
 			const updates: { title?: string; content?: string } = {};
 			if (args.title) updates.title = args.title;
 			if (args.content_json) {
-				const cj = cleanContentJson(args.content_json);
-				try { JSON.parse(cj); } catch {
+				const { doc, repaired } = parseDocxDocument(args.content_json);
+				if (!doc) {
 					return { result: JSON.stringify({ success: false, error: 'Invalid JSON content' }) };
 				}
-				updates.content = cj;
+				if (repaired) console.log('[TOOLS] update_document recovered malformed JSON');
+				updates.content = JSON.stringify(doc);
 			}
 
 			if (Object.keys(updates).length === 0) {

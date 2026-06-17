@@ -1,9 +1,10 @@
-import { streamAIWithTools } from '$lib/server/ai';
+import { streamAIWithTools, type ChatMessage } from '$lib/server/ai';
 import { getActiveAIConnector } from '$lib/server/ai-config';
 import { db, projects, documents, folders, messages } from '$lib/server/db';
-import { eq, and, isNull } from 'drizzle-orm';
-import { buildFolderList, buildSystemPrompt } from '$lib/server/chat-tools/prompt';
+import { eq, and, asc, inArray } from 'drizzle-orm';
+import { buildFolderList, buildDocumentList, buildSystemPrompt, buildMentionContext } from '$lib/server/chat-tools/prompt';
 import { TOOL_DEFINITIONS, executeToolCall } from '$lib/server/chat-tools/tools';
+import { trimHistoryToBudget, estimateTokens, CONTEXT_WINDOW, REPLY_RESERVE } from '$lib/shared/tokens';
 import type { RequestHandler } from './$types';
 
 function jsonError(error: string, status: number): Response {
@@ -13,8 +14,10 @@ function jsonError(error: string, status: number): Response {
 	});
 }
 
+const MAX_MENTIONS = 8;
+
 export const POST: RequestHandler = async ({ request }) => {
-	const { project_id, message } = await request.json();
+	const { project_id, message, mention_ids } = await request.json();
 
 	if (!project_id) return jsonError('Missing project_id', 400);
 	if (!message || !message.trim()) return jsonError('Missing message', 400);
@@ -25,37 +28,46 @@ export const POST: RequestHandler = async ({ request }) => {
 	const [project] = await db.select().from(projects).where(eq(projects.id, project_id));
 	if (!project) return jsonError('Project not found', 404);
 
-	// Find or create the global conversation document (not tied to any project)
-	let [convDoc] = await db
-		.select()
-		.from(documents)
-		.where(
-			and(
-				eq(documents.title, 'Conversation'),
-				isNull(documents.projectId),
-				isNull(documents.folderId)
-			)
-		);
+	// Prior conversation for this project (loaded before saving the new message).
+	const history = await db
+		.select({ role: messages.role, content: messages.content })
+		.from(messages)
+		.where(eq(messages.projectId, project_id))
+		.orderBy(asc(messages.createdAt));
 
-	if (!convDoc) {
-		[convDoc] = await db
-			.insert(documents)
-			.values({ title: 'Conversation', content: '' })
-			.returning();
+	// Persist the user's message (plain text, per-project).
+	await db.insert(messages).values({ projectId: project_id, role: 'user', content: message });
+
+	// Resolve @-mentioned documents (scoped to this project for safety).
+	let mentionContext = '';
+	const ids: string[] = Array.isArray(mention_ids) ? mention_ids.slice(0, MAX_MENTIONS) : [];
+	if (ids.length) {
+		const docs = await db
+			.select({ title: documents.title, content: documents.content })
+			.from(documents)
+			.where(and(inArray(documents.id, ids), eq(documents.projectId, project_id)));
+		mentionContext = buildMentionContext(docs);
 	}
 
-	const document_id = convDoc.id;
-
-	// Save user message
-	await db.insert(messages).values({ documentId: document_id, role: 'user', content: message });
-
-	// Load folders for tool context
+	// Folder + document context so the model can target update/delete by id.
 	const folderRows = await db
 		.select({ id: folders.id, name: folders.name, parent_id: folders.parentId })
 		.from(folders)
 		.where(eq(folders.projectId, project_id));
+	const docRows = await db
+		.select({ id: documents.id, title: documents.title, folder_id: documents.folderId })
+		.from(documents)
+		.where(eq(documents.projectId, project_id));
+	const systemPrompt = buildSystemPrompt(project.name, buildFolderList(folderRows), buildDocumentList(docRows));
 
-	const systemPrompt = buildSystemPrompt(project.name, buildFolderList(folderRows));
+	// Multi-turn context: history + (mentions + this message), trimmed to budget.
+	const userContent = mentionContext ? `${mentionContext}\n\n---\n\n${message}` : message;
+	const conversation: ChatMessage[] = [
+		...history.map((m) => ({ role: m.role as ChatMessage['role'], content: m.content })),
+		{ role: 'user', content: userContent }
+	];
+	const budget = CONTEXT_WINDOW - REPLY_RESERVE - estimateTokens(systemPrompt);
+	const sendMessages = trimHistoryToBudget(conversation, budget);
 
 	const t0 = Date.now();
 	const signal = request.signal;
@@ -76,10 +88,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
 			(async () => {
 				try {
-					console.log(`[TOOLS] start project=${project_id} provider=${connector.provider}`);
+					console.log(`[TOOLS] start project=${project_id} provider=${connector.provider} msgs=${sendMessages.length} mentions=${ids.length}`);
 					const upstream = await streamAIWithTools(
 						connector,
-						[{ role: 'user', content: message }],
+						sendMessages,
 						systemPrompt,
 						TOOL_DEFINITIONS,
 						(toolCall) => executeToolCall(toolCall, project_id),
@@ -101,13 +113,10 @@ export const POST: RequestHandler = async ({ request }) => {
 					assistantResponse += decoder.decode();
 					console.log(`[TOOLS] done len=${assistantResponse.length} elapsed=${Date.now() - t0}ms`);
 
-					// Save assistant reply (strip tool event markers)
-					const cleanReply = assistantResponse
-						.replace(/__TOOL__:[^\n]*\n/g, '')
-						.trim();
+					// Save assistant reply (strip tool event markers).
+					const cleanReply = assistantResponse.replace(/__TOOL__:[^\n]*\n/g, '').trim();
 					if (cleanReply && !signal.aborted) {
-						await db.insert(messages).values({ documentId: document_id, role: 'assistant', content: cleanReply });
-						await db.update(documents).set({ updatedAt: new Date() }).where(eq(documents.id, document_id));
+						await db.insert(messages).values({ projectId: project_id, role: 'assistant', content: cleanReply });
 					}
 				} catch (e: any) {
 					console.error(`[TOOLS] error +${Date.now() - t0}ms`, e?.message || e);

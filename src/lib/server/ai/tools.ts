@@ -56,7 +56,7 @@ export async function streamAIWithTools(
 						// Execute each tool call
 						for (let i = 0; i < response.toolCalls.length; i++) {
 							const tc = response.toolCalls[i];
-							emitToolEvent(controller, 'start', { name: tc.name, arguments: tc.arguments, index: i });
+							emitToolEvent(controller, 'start', { name: tc.name, label: (tc.arguments?.title as string) || (tc.arguments?.document_id as string) || '', index: i });
 
 							try {
 								const { result } = await onToolCall(tc);

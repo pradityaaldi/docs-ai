@@ -1,5 +1,6 @@
+import { jsonrepair } from 'jsonrepair';
 import { stripReasoning } from '../ai/reasoning';
-import type { DocxContent } from './types';
+import { DEFAULT_META, type DocxContent } from './types';
 
 // Robust extraction + validation of AI-produced DOCX-JSON. Models wrap output
 // in reasoning blocks, code fences, and trailing prose, and occasionally emit
@@ -138,4 +139,54 @@ export function parseDocumentBlocks(raw: string): ParseResult {
 
 	const { blocks, warnings } = validateBlocks(arr);
 	return { content: blocks, warnings, ok: true };
+}
+
+function tryParse(s: string): any {
+	try { return JSON.parse(s); } catch { return null; }
+}
+
+export interface DocResult {
+	doc: { meta: Record<string, unknown>; content: DocxContent[] } | null;
+	warnings: string[];
+	repaired: boolean; // true if jsonrepair / block-recovery was needed
+}
+
+/**
+ * Recover a full DOCX document ({meta, content}) from a model-emitted JSON
+ * string. Tolerates reasoning blocks, code fences, leading prose, trailing
+ * junk, and structurally broken JSON (missing braces/commas) via jsonrepair.
+ * Returns a clean, re-serializable doc, or null if nothing usable remains.
+ */
+export function parseDocxDocument(raw: string): DocResult {
+	let cleaned = cleanJson(raw);
+	const brace = cleaned.indexOf('{');
+	if (brace > 0) cleaned = cleaned.slice(brace);
+
+	const attempts: { text: string; repaired: boolean }[] = [{ text: cleaned, repaired: false }];
+	try {
+		const fixed = jsonrepair(cleaned);
+		if (fixed && fixed !== cleaned) attempts.push({ text: fixed, repaired: true });
+	} catch { /* unrepairable */ }
+
+	// Prefer a full-object parse so the model's own meta is preserved.
+	for (const a of attempts) {
+		const obj = tryParse(a.text);
+		if (obj && Array.isArray(obj.content)) {
+			const { blocks, warnings } = validateBlocks(obj.content);
+			if (blocks.length) {
+				const meta = obj.meta && typeof obj.meta === 'object' ? obj.meta : { ...DEFAULT_META };
+				return { doc: { meta, content: blocks }, warnings, repaired: a.repaired };
+			}
+		}
+	}
+
+	// Fallback: extract just the content blocks (balanced-brace scan), default meta.
+	for (const a of attempts) {
+		const r = parseDocumentBlocks(a.text);
+		if (r.ok && r.content.length) {
+			return { doc: { meta: { ...DEFAULT_META }, content: r.content }, warnings: r.warnings, repaired: true };
+		}
+	}
+
+	return { doc: null, warnings: ['unrecoverable document JSON'], repaired: false };
 }

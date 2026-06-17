@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
+	import { toggleMessageSelected } from '$lib/actions';
 	import { phaseLabel, fmtBytes } from './status';
+	import { CheckIcon } from '$lib/components/ui/icons';
 	import MessageStatus from './MessageStatus.svelte';
 
 	interface Props {
@@ -14,11 +16,31 @@
 
 	let isAttached = $derived(app.status.attachedMsgId === msg.id && app.status.phase !== 'idle');
 	let hasContent = $derived(msg.content.trim().length > 0);
+	let selected = $derived(app.selectedMsgIds.includes(msg.id));
+	let selectable = $derived(app.selectMode && hasContent);
+
+	let copied = $state(false);
+	async function copyOutput() {
+		try {
+			await navigator.clipboard.writeText(msg.content);
+			copied = true;
+			setTimeout(() => (copied = false), 1500);
+		} catch { /* clipboard unavailable */ }
+	}
 </script>
 
 <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
 	<div class="{msg.role === 'user' ? 'max-w-[82%]' : 'w-full'}">
 		<div class="mb-1 flex items-center gap-2 px-1">
+			{#if selectable}
+				<input
+					type="checkbox"
+					checked={selected}
+					onchange={() => toggleMessageSelected(msg.id)}
+					class="h-3.5 w-3.5 cursor-pointer accent-[var(--fg-interactive)]"
+					aria-label="Pilih pesan untuk disalin"
+				/>
+			{/if}
 			<span class="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border-base)] bg-[var(--bg-component)] text-[10px] font-semibold text-[var(--fg-muted)]">
 				{msg.role === 'user' ? 'U' : 'A'}
 			</span>
@@ -27,7 +49,7 @@
 
 		<div class="{msg.role === 'user'
 			? 'rounded-2xl rounded-tr-md bg-[var(--fg-interactive)] px-4 py-2.5 text-[var(--fg-on-color)] shadow-sm'
-			: 'rounded-xl border border-[var(--border-base)] bg-[var(--bg-component)] text-[var(--fg-base)] shadow-sm'}">
+			: 'rounded-xl border border-[var(--border-base)] bg-[var(--bg-component)] text-[var(--fg-base)] shadow-sm'} {selected ? 'ring-2 ring-[var(--fg-interactive)] ring-offset-2 ring-offset-[var(--bg-base)]' : ''}">
 
 			{#if msg.role === 'assistant'}
 				{#if isAttached && (app.status.toolCallCurrent || app.status.toolResults.length > 0)}
@@ -87,6 +109,24 @@
 
 					{#if isAttached}
 						<MessageStatus {hasContent} {elapsedTotal} {isStalled} {stallSeconds} />
+					{/if}
+
+					{#if hasContent && !isAttached && !app.selectMode}
+						<div class="mt-2 flex border-t border-[var(--border-base)] pt-2">
+							<button
+								onclick={copyOutput}
+								class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-base-hover)] hover:text-[var(--fg-base)]"
+								title="Copy output"
+							>
+								{#if copied}
+									<CheckIcon size={13} class="text-[var(--tag-green-text)]" />
+									<span>Copied</span>
+								{:else}
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.7"/></svg>
+									<span>Copy</span>
+								{/if}
+							</button>
+						</div>
 					{/if}
 				</div>
 			{:else}

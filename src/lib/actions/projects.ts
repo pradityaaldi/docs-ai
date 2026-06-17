@@ -88,6 +88,7 @@ export async function enterProject(project: typeof app.projects[0]) {
 	app.currentProject = project;
 	app.currentDoc = null;
 	app.messages = [];
+	app.mentions = [];
 	app.sidebarView = 'project-detail';
 	app.expandedFolderIds = new Set();
 	app.navigatingFolderId = null;
@@ -97,26 +98,23 @@ export async function enterProject(project: typeof app.projects[0]) {
 	app.projectTree = data.tree || [];
 	app.rootDocuments = data.rootDocuments || [];
 
-	await loadGlobalConversation();
+	await loadProjectMessages(project.id);
 }
 
-export async function loadGlobalConversation() {
-	// Find the global Conversation document
-	const res = await fetch('/api/documents');
-	const docs = await res.json();
-	const conv = docs.find((d: any) => d.title === 'Conversation' && !d.project_id);
-	if (conv) {
-		app.globalConversation = conv;
-		const msgRes = await fetch(`/api/documents/${conv.id}/messages`);
-		app.messages = await msgRes.json();
-	}
+// Load the per-project conversation history (chat is isolated per project).
+export async function loadProjectMessages(projectId: string) {
+	const res = await fetch(`/api/projects/${projectId}/messages`);
+	app.messages = res.ok ? await res.json() : [];
+	app.mentions = [];
+	app.selectMode = false;
+	app.selectedMsgIds = [];
 }
 
 export function exitToProjects() {
 	app.currentProject = null;
 	app.currentDoc = null;
 	app.messages = [];
-	app.globalConversation = null;
+	app.mentions = [];
 	app.projectTree = [];
 	app.rootDocuments = [];
 	app.sidebarView = 'projects';

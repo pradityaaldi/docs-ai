@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
-	import { exitToProjects, createDocument, createFolder, selectDocument, deleteDocument, logout, generateProjectDoc } from '$lib/actions';
+	import { exitToProjects, createDocument, createFolder, selectDocument, deleteDocument, generateProjectDoc } from '$lib/actions';
 	import TreeItem from '$lib/components/ui/TreeItem.svelte';
 	import FileRow from '$lib/components/ui/FileRow.svelte';
 	import TreeAction from '$lib/components/ui/TreeAction.svelte';
@@ -49,15 +49,19 @@
 			{/if}
 
 			<div class="mt-3 flex flex-col">
-				<div class="group/files flex items-center justify-between px-3 py-1">
-					<span class="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-muted)]">Files</span>
-					<div class="flex items-center gap-x-0.5 opacity-0 transition-opacity group-hover/files:opacity-100">
-						<TreeAction title="New document" onclick={() => createDocument(null)}><FilePlusIcon size={14} /></TreeAction>
-						<TreeAction title="New folder" onclick={() => createFolder(null)}><FolderPlusIcon size={14} /></TreeAction>
+				<div class="flex h-9 items-center justify-between px-3">
+					<span class="text-[13px] font-semibold uppercase tracking-wide text-[var(--fg-muted)]">Files</span>
+					<div class="flex items-center gap-x-1">
+						<TreeAction title="New document" onclick={() => createDocument(null)}><FilePlusIcon size={18} /></TreeAction>
+						<TreeAction title="New folder" onclick={() => createFolder(null)}><FolderPlusIcon size={18} /></TreeAction>
 					</div>
 				</div>
 
 				<div class="flex flex-col">
+					{#each app.projectTree as node (node.id)}
+						<TreeItem {node} onNavigateInto={handleNavigateIntoFolder} />
+					{/each}
+
 					{#each app.rootDocuments as doc (doc.id)}
 						<FileRow
 							id={doc.id}
@@ -67,10 +71,6 @@
 						/>
 					{/each}
 
-					{#each app.projectTree as node (node.id)}
-						<TreeItem {node} onNavigateInto={handleNavigateIntoFolder} />
-					{/each}
-
 					{#if app.projectTree.length === 0 && app.rootDocuments.length === 0}
 						<div class="px-3 py-6 text-center">
 							<p class="text-xs text-[var(--fg-muted)]">No documents yet</p>
@@ -78,37 +78,6 @@
 					{/if}
 				</div>
 			</div>
-		</div>
-	</div>
-
-	<div class="sticky bottom-0 space-y-2 bg-[var(--bg-base)] px-3 pb-3 pt-2">
-		{#if app.currentUser}
-			<div class="flex items-center justify-between gap-x-2 rounded-xl border border-[var(--border-base)] bg-[var(--bg-component)] px-3 py-2 shadow-sm">
-				<div class="min-w-0">
-					<div class="text-xs font-medium text-[var(--fg-base)] truncate">{app.currentUser.name || app.currentUser.email}</div>
-					<div class="text-[10px] text-[var(--fg-muted)] truncate">{app.currentUser.email}{app.currentUser.role === 'admin' ? ' · admin' : ''}</div>
-				</div>
-				<button onclick={logout} title="Logout"
-					class="shrink-0 rounded-md px-2 py-1 text-xs text-[var(--fg-muted)] hover:bg-[var(--bg-base-hover)] hover:text-[var(--fg-error)]">
-					Keluar
-				</button>
-			</div>
-		{/if}
-		<div class="flex items-center justify-between rounded-xl border border-[var(--border-base)] bg-[var(--bg-component)] p-3 shadow-sm">
-			{#if app.aiReady}
-				<div class="flex items-center gap-x-2 min-w-0">
-					<span class="w-1.5 h-1.5 rounded-full bg-[var(--tag-green-text)] shrink-0"></span>
-					<span class="text-xs text-[var(--fg-subtle)] truncate">AI: {app.aiProvider}</span>
-				</div>
-			{:else}
-				<div class="flex items-center gap-x-2">
-					<span class="w-1.5 h-1.5 rounded-full bg-[var(--fg-error)] shrink-0"></span>
-					<span class="text-xs text-[var(--fg-subtle)]">AI not configured</span>
-				</div>
-			{/if}
-			{#if app.currentUser?.role === 'admin'}
-				<a href="/admin" class="text-xs text-[var(--fg-interactive)] hover:underline shrink-0">Admin</a>
-			{/if}
 		</div>
 	</div>
 </aside>

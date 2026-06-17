@@ -124,6 +124,7 @@ export const app = $state({
 	sidebarView: 'projects' as 'projects' | 'project-detail',
 	expandedFolderIds: new Set<string>(),
 	navigatingFolderId: null as string | null,
+	renamingDocId: null as string | null,
 	chatInput: '',
 	isLoading: false,
 	abortController: null as AbortController | null,

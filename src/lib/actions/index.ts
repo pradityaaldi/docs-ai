@@ -16,6 +16,7 @@ export {
 	loadDocuments,
 	selectDocument,
 	createDocument,
+	renameDocument,
 	saveDocument,
 	deleteDocument,
 	clearMessages

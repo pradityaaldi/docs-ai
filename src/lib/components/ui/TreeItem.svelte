@@ -45,7 +45,9 @@
 	async function onCreateDocument(e: MouseEvent) {
 		e.stopPropagation();
 		onNavigateInto(node.id);
+		if (!app.expandedFolderIds.has(node.id)) await toggle();
 		await createDocument(node.id);
+		if (app.expandedFolderIds.has(node.id)) await refresh();
 	}
 
 	async function onCreateFolder(e: MouseEvent) {
@@ -77,24 +79,21 @@
 >
 	{#snippet leading()}
 		{#if isExpanded}
-			<FolderOpenIcon size={14} class="shrink-0 text-[var(--fg-interactive)]" />
+			<FolderOpenIcon size={18} class="shrink-0 text-[var(--fg-interactive)]" />
 		{:else}
-			<FolderIcon size={14} class="shrink-0 text-[var(--fg-muted)]" />
+			<FolderIcon size={18} class="shrink-0 text-[var(--fg-muted)]" />
 		{/if}
 	{/snippet}
 	{#snippet actions()}
-		<TreeAction title="New document" onclick={onCreateDocument}><FilePlusIcon size={12} /></TreeAction>
-		<TreeAction title="New folder" onclick={onCreateFolder}><FolderPlusIcon size={12} /></TreeAction>
-		<TreeAction title="Delete folder" danger onclick={onDeleteFolder}><TrashIcon size={12} /></TreeAction>
+		<TreeAction title="New document" onclick={onCreateDocument}><FilePlusIcon size={16} /></TreeAction>
+		<TreeAction title="New folder" onclick={onCreateFolder}><FolderPlusIcon size={16} /></TreeAction>
+		<TreeAction title="Delete folder" danger onclick={onDeleteFolder}><TrashIcon size={16} /></TreeAction>
 	{/snippet}
 </TreeRow>
 
 {#if isExpanded}
-	{#each node.documents as doc (doc.id)}
-		<FileRow id={doc.id} title={doc.title} depth={depth + 1} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
-	{/each}
-
 	{#if loaded}
+		<!-- Folders first, then files (VSCode order); both arrive name/title-sorted from the API. -->
 		{#each subfolders as sf (sf.id)}
 			<TreeItem
 				node={{ id: sf.id, name: sf.name, type: 'folder', parent_id: node.id, children: [], documents: [] }}
@@ -105,6 +104,10 @@
 
 		{#each subDocuments as sdoc (sdoc.id)}
 			<FileRow id={sdoc.id} title={sdoc.title} depth={depth + 1} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
+		{/each}
+	{:else}
+		{#each node.documents as doc (doc.id)}
+			<FileRow id={doc.id} title={doc.title} depth={depth + 1} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
 		{/each}
 	{/if}
 {/if}

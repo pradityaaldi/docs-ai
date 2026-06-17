@@ -30,6 +30,7 @@ export async function createDocument(folderId: string | null = null) {
 		const newDoc = await res.json();
 		app.documents = [newDoc, ...app.documents];
 		await selectDocument(newDoc);
+		app.renamingDocId = newDoc.id;
 		return;
 	}
 
@@ -45,6 +46,22 @@ export async function createDocument(folderId: string | null = null) {
 	const newDoc = await res.json();
 	await selectDocument(newDoc);
 	await refreshTree();
+	// Drop straight into inline rename so the user names the new file (VSCode-style).
+	app.renamingDocId = newDoc.id;
+}
+
+export async function renameDocument(id: string, title: string) {
+	const name = title.trim();
+	if (!name) return;
+	const res = await fetch(`/api/documents/${id}`, {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ title: name })
+	});
+	if (!res.ok) return;
+	if (app.currentDoc?.id === id) app.currentDoc = { ...app.currentDoc, title: name };
+	if (app.currentProject) await refreshTree();
+	else app.documents = app.documents.map((d) => (d.id === id ? { ...d, title: name } : d));
 }
 
 export async function saveDocument() {

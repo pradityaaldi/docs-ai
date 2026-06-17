@@ -14,6 +14,7 @@
 		depth?: number;
 		onActivate?: () => void;
 		leading?: Snippet;
+		labelContent?: Snippet;
 		actions?: Snippet;
 	}
 
@@ -25,6 +26,7 @@
 		depth = 0,
 		onActivate,
 		leading,
+		labelContent,
 		actions
 	}: Props = $props();
 </script>
@@ -35,29 +37,33 @@
 	tabindex="0"
 	onclick={onActivate}
 	onkeydown={(e) => e.key === 'Enter' && onActivate?.()}
-	class="group/row flex cursor-pointer select-none items-center gap-x-1 py-[3px] pr-2 text-[13px] transition-colors {active
+	class="group/row flex min-h-10 cursor-pointer select-none items-center gap-x-1.5 py-1 pr-2 text-[15px] transition-colors {active
 		? 'bg-[var(--bg-base-pressed)] text-[var(--fg-base)]'
 		: 'text-[var(--fg-subtle)] hover:bg-[var(--bg-base-hover)]'}"
 >
 	{#each Array(depth) as _, i (i)}
-		<span class="w-3 shrink-0 self-stretch border-l border-[var(--border-base)]"></span>
+		<span class="w-4 shrink-0 self-stretch border-l border-[var(--border-base)]"></span>
 	{/each}
 
 	{#if expandable}
 		<ChevronRightIcon
-			size={12}
+			size={18}
 			class="ml-1 shrink-0 text-[var(--fg-muted)] transition-transform {expanded ? 'rotate-90' : ''}"
 		/>
 	{:else}
-		<span class="ml-1 w-3 shrink-0"></span>
+		<span class="ml-1 w-[18px] shrink-0"></span>
 	{/if}
 
 	{#if leading}{@render leading()}{/if}
 
-	<span class="min-w-0 flex-1 truncate">{label}</span>
+	{#if labelContent}
+		{@render labelContent()}
+	{:else}
+		<span class="min-w-0 flex-1 truncate">{label}</span>
+	{/if}
 
 	{#if actions}
-		<div class="ml-0.5 hidden items-center gap-x-0.5 group-hover/row:flex">
+		<div class="ml-0.5 hidden h-6 items-center gap-x-0.5 group-hover/row:flex">
 			{@render actions()}
 		</div>
 	{/if}

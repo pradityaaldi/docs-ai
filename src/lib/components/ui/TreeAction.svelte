@@ -15,7 +15,7 @@
 	{title}
 	aria-label={title}
 	{onclick}
-	class="rounded p-0.5 text-[var(--fg-muted)] transition-colors {danger
+	class="inline-flex shrink-0 items-center justify-center rounded p-1 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-component-hover)] {danger
 		? 'hover:text-[var(--fg-error)]'
 		: 'hover:text-[var(--fg-base)]'}"
 >

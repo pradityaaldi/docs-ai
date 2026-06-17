@@ -195,7 +195,7 @@
 
 	<div class="flex-1 overflow-hidden">
 		{#if app.previewTab === 'preview'}
-			<div class="h-full overflow-auto bg-[var(--bg-subtle)]" bind:this={app.previewContainer}>
+			<div class="h-full overflow-auto bg-[var(--bg-canvas)]" bind:this={app.previewContainer}>
 				{#if docCtx}
 					<div
 						bind:this={measurer}

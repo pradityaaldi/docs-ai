@@ -1,4 +1,5 @@
 import type { AIConnector, ChatMessage, CompletionResult } from './types';
+import { stripReasoning } from './reasoning';
 
 /**
  * Non-streaming single completion. Used for section-by-section server-side
@@ -14,7 +15,8 @@ export async function generateCompletion(
 	const { provider, base_url, model_name, api_key } = connector;
 	const cleanUrl = base_url.replace(/\/+$/, '');
 
-	if (provider === 'openai') {
+	// MiniMax is OpenAI-compatible (Bearer auth, /chat/completions).
+	if (provider === 'openai' || provider === 'minimax') {
 		const res = await fetch(`${cleanUrl}/chat/completions`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', ...(api_key ? { Authorization: `Bearer ${api_key}` } : {}) },
@@ -27,7 +29,7 @@ export async function generateCompletion(
 		});
 		if (!res.ok) throw new Error(`OpenAI API error: ${res.status} - ${await res.text()}`);
 		const data = await res.json();
-		const text = data.choices?.[0]?.message?.content || '';
+		const text = stripReasoning(data.choices?.[0]?.message?.content || '');
 		const u = data.usage || {};
 		return {
 			text,

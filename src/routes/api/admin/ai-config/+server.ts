@@ -4,12 +4,7 @@ import { db, aiConfig } from '$lib/server/db';
 import { desc } from 'drizzle-orm';
 import { snakeify } from '$lib/server/serialize';
 import { notAdmin } from '$lib/server/admin-guard';
-
-const DEFAULT_BASE: Record<string, string> = {
-	openai: 'https://api.openai.com/v1',
-	anthropic: 'https://api.anthropic.com',
-	gemini: 'https://generativelanguage.googleapis.com'
-};
+import { DEFAULT_BASE, type AIProviderId } from '$lib/shared/providers';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	const denied = notAdmin(locals);
@@ -32,7 +27,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			provider,
 			apiKey: apiKey || '',
 			model,
-			baseUrl: baseUrl || DEFAULT_BASE[provider] || '',
+			baseUrl: baseUrl || DEFAULT_BASE[provider as AIProviderId] || '',
 			isActive: false,
 			updatedBy: locals.user!.id
 		})

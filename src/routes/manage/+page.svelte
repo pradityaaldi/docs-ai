@@ -1,18 +1,34 @@
 <script lang="ts">
 	import '../../app.css';
 	import { onMount } from 'svelte';
-	import { Button, Card, Input, PageHeader, Select, StatCard, Tabs, ArrowLeftIcon, CheckIcon, CheckCircleIcon, XCircleIcon } from '$lib/components/ui';
+	import { Badge, Button, Card, Input, PageHeader, Select, StatCard, Tabs, ArrowLeftIcon, CheckIcon, CheckCircleIcon, XCircleIcon } from '$lib/components/ui';
+	import { PROVIDER_IDS, PROVIDER_LABELS, PROVIDER_MODELS } from '$lib/shared/providers';
 
 	const TABS = [
 		{ key: 'config', label: 'AI Config' },
-		{ key: 'limits', label: 'Safety Limits' },
+		{ key: 'users', label: 'Pengguna' },
 		{ key: 'monitor', label: 'Monitoring' },
-		{ key: 'users', label: 'Aktivasi User' }
+		{ key: 'limits', label: 'Safety Limits' },
+		{ key: 'activate', label: 'Aktivasi User' }
 	];
 	let tab = $state('config');
 
+	let userList = $state<any[]>([]);
+	async function loadUsers() { userList = await (await fetch('/api/admin/users')).json(); }
+	function fmtDate(d: string | null) { return d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'; }
+
+	// Provider/model catalog lives in $lib/shared/providers (single source).
+	const MODELS = PROVIDER_MODELS as Record<string, string[]>;
+
+	type CfgForm = { provider: string; model: string; baseUrl: string; apiKey: string };
 	let configs = $state<any[]>([]);
-	let newCfg = $state({ provider: 'openai', model: '', baseUrl: '', apiKey: '' });
+	let newCfg = $state<CfgForm>({ provider: 'gemini', model: 'gemini-2.5-flash-lite', baseUrl: '', apiKey: '' });
+
+	// Keep model valid for the selected provider (call on provider change).
+	function syncModel(cfg: CfgForm) {
+		const list = MODELS[cfg.provider] ?? [];
+		if (!list.includes(cfg.model)) cfg.model = list[0] ?? '';
+	}
 	let testMsg = $state('');
 	let testOk = $state<boolean | null>(null);
 	let cfgMsg = $state('');
@@ -32,7 +48,7 @@
 	async function loadLimits() { limits = await (await fetch('/api/admin/limits')).json(); }
 	async function loadStats() { stats = await (await fetch('/api/admin/stats')).json(); }
 
-	onMount(() => { loadConfigs(); loadLimits(); loadStats(); });
+	onMount(() => { loadConfigs(); loadLimits(); loadStats(); loadUsers(); });
 
 	async function addConfig() {
 		cfgMsg = '';
@@ -42,9 +58,29 @@
 		});
 		const d = await res.json();
 		if (!res.ok) { cfgMsg = d.error || 'Gagal'; return; }
-		newCfg = { provider: 'openai', model: '', baseUrl: '', apiKey: '' };
+		newCfg = { provider: 'gemini', model: 'gemini-2.5-flash-lite', baseUrl: '', apiKey: '' };
 		await loadConfigs();
 	}
+	// Inline edit of an existing config (change model/key/base without re-adding).
+	let editId = $state<string | null>(null);
+	let editCfg = $state<CfgForm>({ provider: '', model: '', baseUrl: '', apiKey: '' });
+	function startEdit(c: any) {
+		editId = c.id;
+		editCfg = { provider: c.provider, model: c.model, baseUrl: c.base_url, apiKey: '' };
+	}
+	function cancelEdit() { editId = null; }
+	async function saveEdit() {
+		cfgMsg = '';
+		const res = await fetch(`/api/admin/ai-config/${editId}`, {
+			method: 'PUT', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(editCfg)
+		});
+		const d = await res.json();
+		if (!res.ok) { cfgMsg = d.error || 'Gagal'; return; }
+		editId = null;
+		await loadConfigs();
+	}
+
 	async function activate(id: string) { await fetch(`/api/admin/ai-config/${id}/activate`, { method: 'POST' }); await loadConfigs(); }
 	async function delConfig(id: string) { await fetch(`/api/admin/ai-config/${id}`, { method: 'DELETE' }); await loadConfigs(); }
 	async function testConfig(id: string) {
@@ -71,7 +107,7 @@
 </script>
 
 <div class="min-h-dvh bg-[var(--bg-base)]">
-	<PageHeader title="Admin · Paperio">
+	<PageHeader title="Kelola · Paperio">
 		{#snippet actions()}
 			<a href="/app" class="inline-flex items-center gap-1 text-sm text-[var(--fg-interactive)] hover:underline"><ArrowLeftIcon size={14} />Dashboard</a>
 		{/snippet}
@@ -80,19 +116,45 @@
 	<div class="px-6 py-4 max-w-4xl mx-auto">
 		<Tabs tabs={TABS} bind:active={tab} class="mb-6" />
 
+		{#snippet cfgFields(cfg: CfgForm, keyPlaceholder: string)}
+			<div class="grid grid-cols-2 gap-3">
+				<Select bind:value={cfg.provider} onchange={() => syncModel(cfg)}>
+					{#each PROVIDER_IDS as p}<option value={p}>{PROVIDER_LABELS[p]}</option>{/each}
+				</Select>
+				<Select bind:value={cfg.model}>
+					{#each MODELS[cfg.provider] ?? [] as m}<option value={m}>{m}</option>{/each}
+				</Select>
+				<Input bind:value={cfg.baseUrl} placeholder="base url (kosongkan = default)" />
+				<Input bind:value={cfg.apiKey} type="password" placeholder={keyPlaceholder} />
+			</div>
+		{/snippet}
+
 		{#if tab === 'config'}
 			<div class="space-y-4">
 				{#each configs as c (c.id)}
-					<Card rounded="lg" padding="sm" class="flex items-center gap-3">
-						<span class="w-2 h-2 rounded-full {c.is_active ? 'bg-[var(--tag-green-text)]' : 'bg-[var(--fg-muted)]'}"></span>
-						<div class="flex-1 min-w-0">
-							<div class="text-sm font-medium">{c.provider} · {c.model}</div>
-							<div class="text-xs text-[var(--fg-muted)] truncate">{c.base_url} · key {c.api_key}</div>
-						</div>
-						<Button variant="neutral" size="sm" onclick={() => testConfig(c.id)}>Test</Button>
-						{#if !c.is_active}<Button size="sm" onclick={() => activate(c.id)}>Aktifkan</Button>{/if}
-						<Button variant="ghost" size="sm" onclick={() => delConfig(c.id)}>Hapus</Button>
-					</Card>
+					{#if editId === c.id}
+						<Card rounded="lg" padding="sm" class="space-y-3">
+							<h3 class="text-sm font-medium">Ubah config</h3>
+							{@render cfgFields(editCfg, 'API key (kosongkan = tetap)')}
+							<div class="flex gap-2">
+								<Button size="sm" onclick={saveEdit}>Simpan</Button>
+								<Button variant="ghost" size="sm" onclick={cancelEdit}>Batal</Button>
+							</div>
+							{#if cfgMsg}<span class="text-sm text-[var(--fg-error)] ml-2">{cfgMsg}</span>{/if}
+						</Card>
+					{:else}
+						<Card rounded="lg" padding="sm" class="flex items-center gap-3">
+							<span class="w-2 h-2 rounded-full {c.is_active ? 'bg-[var(--tag-green-text)]' : 'bg-[var(--fg-muted)]'}"></span>
+							<div class="flex-1 min-w-0">
+								<div class="text-sm font-medium">{c.provider} · {c.model}</div>
+								<div class="text-xs text-[var(--fg-muted)] truncate">{c.base_url} · key {c.api_key}</div>
+							</div>
+							<Button variant="neutral" size="sm" onclick={() => testConfig(c.id)}>Test</Button>
+							<Button variant="neutral" size="sm" onclick={() => startEdit(c)}>Ubah</Button>
+							{#if !c.is_active}<Button size="sm" onclick={() => activate(c.id)}>Aktifkan</Button>{/if}
+							<Button variant="ghost" size="sm" onclick={() => delConfig(c.id)}>Hapus</Button>
+						</Card>
+					{/if}
 				{/each}
 				{#if testMsg}
 					<p class="text-sm flex items-center gap-1.5">
@@ -103,17 +165,46 @@
 
 				<Card rounded="lg" padding="sm" class="space-y-3">
 					<h3 class="text-sm font-medium">Tambah AI Config</h3>
-					<div class="grid grid-cols-2 gap-3">
-						<Select bind:value={newCfg.provider}>
-							<option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option>
-						</Select>
-						<Input bind:value={newCfg.model} placeholder="model (gpt-4o, claude-…)" />
-						<Input bind:value={newCfg.baseUrl} placeholder="base url (kosongkan = default)" />
-						<Input bind:value={newCfg.apiKey} type="password" placeholder="API key" />
-					</div>
+					{@render cfgFields(newCfg, 'API key')}
 					<Button onclick={addConfig}>Simpan</Button>
-					{#if cfgMsg}<span class="text-sm text-[var(--fg-error)] ml-2">{cfgMsg}</span>{/if}
+					{#if cfgMsg && editId === null}<span class="text-sm text-[var(--fg-error)] ml-2">{cfgMsg}</span>{/if}
 				</Card>
+			</div>
+		{:else if tab === 'users'}
+			<div class="space-y-3">
+				<h3 class="text-sm font-medium">Semua pengguna ({userList.length})</h3>
+				<div class="overflow-x-auto">
+					<table class="w-full text-sm">
+						<thead>
+							<tr class="text-left text-[var(--fg-muted)]">
+								<th class="py-1 font-medium">Email</th>
+								<th class="font-medium">Role</th>
+								<th class="font-medium text-right">Token</th>
+								<th class="font-medium text-right">Generate</th>
+								<th class="font-medium text-right">Biaya</th>
+								<th class="font-medium text-right">Terakhir aktif</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each userList as u (u.id)}
+								<tr class="border-t border-[var(--border-base)]">
+									<td class="py-1.5">
+										<div class="font-medium">{u.email}</div>
+										{#if u.name}<div class="text-xs text-[var(--fg-muted)]">{u.name}</div>{/if}
+									</td>
+									<td><Badge variant={u.role === 'admin' ? 'info' : 'neutral'}>{u.role}</Badge></td>
+									<td class="text-right tabular-nums">{u.tokens.toLocaleString()}</td>
+									<td class="text-right tabular-nums">{u.count}</td>
+									<td class="text-right tabular-nums">${u.cost.toFixed(2)}</td>
+									<td class="text-right text-[var(--fg-muted)]">{fmtDate(u.last_active)}</td>
+								</tr>
+							{/each}
+							{#if !userList.length}
+								<tr><td colspan="6" class="py-3 text-center text-[var(--fg-muted)]">Belum ada pengguna</td></tr>
+							{/if}
+						</tbody>
+					</table>
+				</div>
 			</div>
 		{:else if tab === 'limits' && limits}
 			<Card rounded="lg" class="space-y-3 max-w-md">
@@ -153,7 +244,7 @@
 					</table>
 				</div>
 			</div>
-		{:else if tab === 'users'}
+		{:else if tab === 'activate'}
 			<Card rounded="lg" class="space-y-3 max-w-md">
 				<h3 class="text-sm font-medium">Aktifkan langganan manual (fallback)</h3>
 				<Input bind:value={actEmail} placeholder="email user" />

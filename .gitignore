@@ -13,3 +13,6 @@ src/data/*.db-journal
 .env.*
 .commandcode
 .DS_Store
+
+# generation tuning harness artifacts
+scripts/test-output-*.docx

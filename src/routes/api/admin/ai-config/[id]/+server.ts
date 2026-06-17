@@ -4,6 +4,7 @@ import { db, aiConfig } from '$lib/server/db';
 import { eq } from 'drizzle-orm';
 import { snakeify } from '$lib/server/serialize';
 import { notAdmin } from '$lib/server/admin-guard';
+import { DEFAULT_BASE, type AIProviderId } from '$lib/shared/providers';
 
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	const denied = notAdmin(locals);
@@ -13,7 +14,8 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	const patch: Record<string, unknown> = { updatedAt: new Date(), updatedBy: locals.user!.id };
 	if (provider) patch.provider = provider;
 	if (model) patch.model = model;
-	if (baseUrl !== undefined) patch.baseUrl = baseUrl;
+	// empty base + known provider → fall back to that provider's default endpoint
+	if (baseUrl !== undefined) patch.baseUrl = baseUrl || (provider ? DEFAULT_BASE[provider as AIProviderId] : '') || '';
 	// only overwrite key if a real (non-masked) value is provided
 	if (apiKey && !apiKey.startsWith('••••')) patch.apiKey = apiKey;
 

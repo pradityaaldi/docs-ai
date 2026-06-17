@@ -65,7 +65,7 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
 
 export const aiConfig = pgTable('ai_config', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	provider: text('provider', { enum: ['openai', 'anthropic', 'gemini'] }).notNull(),
+	provider: text('provider', { enum: ['openai', 'anthropic', 'gemini', 'minimax'] }).notNull(),
 	apiKey: text('api_key').notNull().default(''),
 	model: text('model').notNull(),
 	baseUrl: text('base_url').notNull(),

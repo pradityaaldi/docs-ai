@@ -7,7 +7,9 @@ export async function testConnectorConnection(
 	const cleanUrl = base_url.replace(/\/+$/, '');
 
 	switch (provider) {
-		case 'openai': {
+		case 'openai':
+		case 'minimax': {
+			// MiniMax is OpenAI-compatible.
 			try {
 				const res = await fetch(`${cleanUrl}/chat/completions`, {
 					method: 'POST',

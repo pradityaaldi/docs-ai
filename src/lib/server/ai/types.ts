@@ -1,4 +1,6 @@
-export type AIProvider = 'openai' | 'anthropic' | 'gemini';
+import type { AIProviderId } from '$lib/shared/providers';
+
+export type AIProvider = AIProviderId;
 
 export interface AIConnector {
 	id: string;

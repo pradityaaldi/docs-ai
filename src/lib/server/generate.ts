@@ -1,29 +1,6 @@
 import { generateCompletion, type AIConnector, type Usage } from '$lib/server/ai';
+import { parseDocumentBlocks, cleanJson } from '$lib/server/docx';
 import type { Template, Project } from '$lib/server/db/schema';
-
-// ── helpers ──
-
-export function cleanJson(raw: string): string {
-	let s = raw.replace(/<think>[\s\S]*?<\/think>/g, '');
-	s = s.replace(/<think>[\s\S]*$/, '');
-	s = s.replace(/```(?:json)?\s*/gi, '');
-	s = s.replace(/```\s*$/g, '');
-	return s.trim();
-}
-
-function sliceObject(raw: string): string {
-	const s = cleanJson(raw);
-	const a = s.indexOf('{');
-	const b = s.lastIndexOf('}');
-	return a >= 0 && b > a ? s.slice(a, b + 1) : s;
-}
-
-function sliceArray(raw: string): string {
-	const s = cleanJson(raw);
-	const a = s.indexOf('[');
-	const b = s.lastIndexOf(']');
-	return a >= 0 && b > a ? s.slice(a, b + 1) : s;
-}
 
 export interface DocMeta {
 	pageSize: string;
@@ -71,18 +48,23 @@ const BLOCK_REF = `Block types yang boleh dipakai (DOCX JSON):
 - { "type": "pageBreak" }
 - { "type": "toc", "label": "Daftar Isi" }`;
 
+// Shared output rules — keeps reasoning models (e.g. MiniMax M-series) from
+// leaking <think> blocks and pushes richer structure for better DOCX quality.
+const OUTPUT_RULES = `- Output HANYA JSON valid. JANGAN tulis prosa, code fence (\`\`\`), atau tag <think> apa pun.
+- Mulai jawaban langsung dengan karakter { atau [ — tidak ada teks sebelum/sesudah JSON.
+- Isi konten nyata, lengkap, substansial sesuai data user — BUKAN placeholder/lorem.
+- Manfaatkan struktur kaya: heading bertingkat, paragraf yang mengalir, dan gunakan table/bullet/numbered bila menyajikan data, daftar, atau perbandingan.`;
+
 export type ProgressFn = (e: Record<string, unknown>) => void;
 
-// ── single-shot for short docs (makalah / surat) ──
+// ── prompt builders (pure, reused by the tuning harness) ──
 
-async function generateSingle(
-	tpl: Template,
-	project: Project,
-	connector: AIConnector,
-	meta: DocMeta,
-	signal: AbortSignal | undefined,
-	onProgress: ProgressFn
-): Promise<{ content: any[]; usage: Usage }> {
+export interface Prompt {
+	system: string;
+	user: string;
+}
+
+export function buildSinglePrompt(tpl: Template, project: Project): Prompt {
 	const struktur = tpl.struktur as Array<{ section: string; sub?: string[] }>;
 	const strukturText = struktur
 		.map((s) => `- ${s.section}${s.sub?.length ? ` (${s.sub.join(', ')})` : ''}`)
@@ -97,23 +79,63 @@ ${strukturText}
 ${BLOCK_REF}
 
 ATURAN:
-- Output HANYA objek JSON valid: { "content": [ ...blocks... ] }. Tanpa prosa, tanpa code fence, tanpa <think>.
+- Bungkus dalam objek: { "content": [ ...blocks... ] }.
 - JANGAN sertakan "meta" (sudah diatur sistem).
-- Isi konten nyata, lengkap, sesuai data user — bukan placeholder.
+${OUTPUT_RULES}
 - Untuk surat: tulis surat resmi lengkap (tempat/tanggal, tujuan, pembuka, isi, penutup, tanda tangan).`;
 
 	const user = `Data user:\n${inputSummary(project.input as any)}\n\nBuat dokumen lengkap sekarang.`;
+	return { system, user };
+}
+
+function sectionCtx(tpl: Template, project: Project): string {
+	return `Judul: ${(project.input as any)?.judul || project.name}
+Data user:
+${inputSummary(project.input as any)}
+Kampus: ${tpl.kampus || '-'}
+Bahasa: ${project.bahasa}`;
+}
+
+export function buildSectionPrompt(
+	tpl: Template,
+	project: Project,
+	sec: { section: string; sub?: string[] }
+): Prompt {
+	const isBab = /^BAB/i.test(sec.section);
+	const system = `Kamu penulis skripsi akademik. Tulis SATU bagian skripsi: "${sec.section}".
+${sec.sub?.length ? `Subbagian: ${sec.sub.join(', ')}.` : ''}
+Bahasa: ${project.bahasa}.
+
+${BLOCK_REF}
+
+ATURAN:
+- Output berupa array JSON berisi blocks untuk bagian ini saja.
+- ${isBab ? 'Mulai dengan heading level 1 untuk judul BAB, heading level 2 untuk subbagian.' : 'Gunakan heading level 1 untuk judul bagian ini.'}
+${OUTPUT_RULES}
+- Tulis beberapa paragraf per subbagian — akademik, mengalir, substansial.
+- Untuk "Daftar Pustaka": minimal 8 referensi gaya APA sebagai numbered/paragraph.`;
+
+	const user = `Konteks:\n${sectionCtx(tpl, project)}\n\nTulis bagian "${sec.section}" sekarang.`;
+	return { system, user };
+}
+
+// ── single-shot for short docs (makalah / surat) ──
+
+async function generateSingle(
+	tpl: Template,
+	project: Project,
+	connector: AIConnector,
+	signal: AbortSignal | undefined,
+	onProgress: ProgressFn
+): Promise<{ content: any[]; usage: Usage }> {
+	const { system, user } = buildSinglePrompt(tpl, project);
 
 	onProgress({ type: 'section', name: tpl.name, index: 0, total: 1 });
 	const { text, usage } = await generateCompletion(connector, [{ role: 'user', content: user }], system, signal, 16384);
 
-	let content: any[] = [];
-	try {
-		const parsed = JSON.parse(sliceObject(text));
-		content = Array.isArray(parsed.content) ? parsed.content : Array.isArray(parsed) ? parsed : [];
-	} catch {
-		content = [{ type: 'paragraph', text: cleanJson(text) }];
-	}
+	const res = parseDocumentBlocks(text);
+	if (res.warnings.length) onProgress({ type: 'parse_warn', name: tpl.name, warnings: res.warnings });
+	const content = res.ok && res.content.length ? res.content : [{ type: 'paragraph', text: cleanJson(text) }];
 	return { content, usage };
 }
 
@@ -123,7 +145,6 @@ async function generateSectioned(
 	tpl: Template,
 	project: Project,
 	connector: AIConnector,
-	meta: DocMeta,
 	signal: AbortSignal | undefined,
 	onProgress: ProgressFn
 ): Promise<{ content: any[]; usage: Usage }> {
@@ -131,12 +152,6 @@ async function generateSectioned(
 	const total = struktur.length;
 	const all: any[] = [];
 	const usage: Usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-
-	const ctx = `Judul: ${(project.input as any)?.judul || project.name}
-Data user:
-${inputSummary(project.input as any)}
-Kampus: ${tpl.kampus || '-'}
-Bahasa: ${project.bahasa}`;
 
 	for (let i = 0; i < struktur.length; i++) {
 		if (signal?.aborted) break;
@@ -151,19 +166,7 @@ Bahasa: ${project.bahasa}`;
 		}
 
 		const isBab = /^BAB/i.test(sec.section);
-		const system = `Kamu penulis skripsi akademik. Tulis SATU bagian skripsi: "${sec.section}".
-${sec.sub?.length ? `Subbagian: ${sec.sub.join(', ')}.` : ''}
-Bahasa: ${project.bahasa}.
-
-${BLOCK_REF}
-
-ATURAN:
-- Output HANYA array JSON berisi blocks untuk bagian ini. Tanpa prosa/fence/<think>.
-- ${isBab ? 'Mulai dengan heading level 1 untuk judul BAB, heading level 2 untuk subbagian.' : 'Gunakan heading level 1 untuk judul bagian ini.'}
-- Tulis konten akademik nyata, mengalir, dan substansial (beberapa paragraf per subbagian). Bukan placeholder.
-- Untuk "Daftar Pustaka": buat minimal 8 referensi gaya APA sebagai numbered/paragraph.`;
-
-		const user = `Konteks:\n${ctx}\n\nTulis bagian "${sec.section}" sekarang.`;
+		const { system, user } = buildSectionPrompt(tpl, project, sec);
 
 		try {
 			const { text, usage: u } = await generateCompletion(connector, [{ role: 'user', content: user }], system, signal, 8192);
@@ -171,14 +174,11 @@ ATURAN:
 			usage.completionTokens += u.completionTokens;
 			usage.totalTokens += u.totalTokens;
 
-			let blocks: any[] = [];
-			try {
-				blocks = JSON.parse(sliceArray(text));
-			} catch {
-				blocks = [{ type: 'paragraph', text: cleanJson(text) }];
-			}
+			const res = parseDocumentBlocks(text);
+			if (res.warnings.length) onProgress({ type: 'parse_warn', name: sec.section, warnings: res.warnings });
+			const blocks = res.ok && res.content.length ? res.content : [{ type: 'paragraph', text: cleanJson(text) }];
 			if (isBab && all.length > 0) all.push({ type: 'pageBreak' });
-			all.push(...(Array.isArray(blocks) ? blocks : []));
+			all.push(...blocks);
 		} catch (e) {
 			onProgress({ type: 'section_error', name: sec.section, error: (e as Error).message });
 			if (signal?.aborted) break;
@@ -200,8 +200,8 @@ export async function generateProjectDocument(
 	const meta = metaFromFormat(tpl.format);
 	const { content, usage } =
 		tpl.category === 'skripsi'
-			? await generateSectioned(tpl, project, connector, meta, signal, onProgress)
-			: await generateSingle(tpl, project, connector, meta, signal, onProgress);
+			? await generateSectioned(tpl, project, connector, signal, onProgress)
+			: await generateSingle(tpl, project, connector, signal, onProgress);
 
 	const doc = { meta, content };
 	return { docJson: JSON.stringify(doc), usage };

@@ -1,4 +1,5 @@
 import type { AIConnector, ChatMessage, ToolCall, ToolCallResponse, ToolDefinition } from './types';
+import { stripReasoning } from './reasoning';
 
 export async function streamAIWithTools(
 	connector: AIConnector,
@@ -29,7 +30,8 @@ export async function streamAIWithTools(
 					if (signal?.aborted) break;
 
 					let response: ToolCallResponse;
-					if (provider === 'openai') {
+					if (provider === 'openai' || provider === 'minimax') {
+						// MiniMax is OpenAI-compatible (tools + tool_choice + tool_calls).
 						response = await callOpenAIWithTools(connector, workingMessages, systemPrompt, tools, signal);
 					} else if (provider === 'anthropic') {
 						response = await callAnthropicWithTools(connector, workingMessages, systemPrompt, tools, signal);
@@ -159,10 +161,10 @@ async function callOpenAIWithTools(
 			name: tc.function.name,
 			arguments: tc.function.arguments ? JSON.parse(tc.function.arguments) : {}
 		}));
-		return { text: msg.content || null, toolCalls, finishReason: choice.finish_reason };
+		return { text: stripReasoning(msg.content) || null, toolCalls, finishReason: choice.finish_reason };
 	}
 
-	return { text: msg?.content || null, toolCalls: null, finishReason: choice?.finish_reason || 'stop' };
+	return { text: stripReasoning(msg?.content) || null, toolCalls: null, finishReason: choice?.finish_reason || 'stop' };
 }
 
 async function callAnthropicWithTools(

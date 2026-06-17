@@ -1,5 +1,6 @@
 import type { AIConnector, ChatMessage } from './types';
 import { parseSSE } from './sse';
+import { stripReasoningStream } from './reasoning';
 
 export async function streamAIResponse(
 	connector: AIConnector,
@@ -16,6 +17,7 @@ export async function streamAIResponse(
 
 	switch (provider) {
 		case 'openai':
+		case 'minimax': // OpenAI-compatible
 			return streamOpenAI(base_url, model_name, api_key, formattedMessages, signal);
 		case 'anthropic':
 			return streamAnthropic(base_url, model_name, api_key, formattedMessages, signal);
@@ -67,7 +69,8 @@ async function streamOpenAI(
 
 	if (!response.body) throw new Error('No response body');
 
-	return parseSSE(response.body, (event) => {
+	// Strip any leading <think>…</think> reasoning (MiniMax M-series) live.
+	return stripReasoningStream(parseSSE(response.body, (event) => {
 		try {
 			const parsed = JSON.parse(event);
 			const choice = parsed.choices?.[0];
@@ -77,7 +80,7 @@ async function streamOpenAI(
 		} catch {
 			return { text: null };
 		}
-	});
+	}));
 }
 
 async function streamAnthropic(

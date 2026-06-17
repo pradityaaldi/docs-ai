@@ -15,3 +15,4 @@ export { generateCompletion } from './completion';
 export { streamAIResponse } from './stream';
 export { streamAIWithTools } from './tools';
 export { testConnectorConnection } from './test';
+export { stripReasoning, makeReasoningStripper, stripReasoningStream } from './reasoning';

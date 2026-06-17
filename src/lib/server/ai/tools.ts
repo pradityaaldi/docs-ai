@@ -1,5 +1,8 @@
 import type { AIConnector, ChatMessage, ToolCall, ToolCallResponse, ToolDefinition } from './types';
-import { stripReasoning } from './reasoning';
+import { consumeOpenAIToolStream } from './openai-stream-tools';
+
+// Emits visible assistant text to the client wire as it arrives.
+type Emit = (text: string) => void;
 
 export async function streamAIWithTools(
 	connector: AIConnector,
@@ -25,6 +28,12 @@ export async function streamAIWithTools(
 				try { controller.enqueue(encoder.encode(' ')); } catch { closed = true; }
 			}, 3000);
 
+			// Visible text streams to the client wire live; provider callers push
+			// their text through this (so we never double-enqueue here).
+			const emit: Emit = (text) => {
+				try { controller.enqueue(encoder.encode(text)); } catch {}
+			};
+
 			try {
 				while (true) {
 					if (signal?.aborted) break;
@@ -32,11 +41,11 @@ export async function streamAIWithTools(
 					let response: ToolCallResponse;
 					if (provider === 'openai' || provider === 'minimax') {
 						// MiniMax is OpenAI-compatible (tools + tool_choice + tool_calls).
-						response = await callOpenAIWithTools(connector, workingMessages, systemPrompt, tools, signal);
+						response = await callOpenAIWithTools(connector, workingMessages, systemPrompt, tools, signal, emit);
 					} else if (provider === 'anthropic') {
-						response = await callAnthropicWithTools(connector, workingMessages, systemPrompt, tools, signal);
+						response = await callAnthropicWithTools(connector, workingMessages, systemPrompt, tools, signal, emit);
 					} else if (provider === 'gemini') {
-						response = await callGeminiWithTools(connector, workingMessages, systemPrompt, tools, signal);
+						response = await callGeminiWithTools(connector, workingMessages, systemPrompt, tools, signal, emit);
 					} else {
 						throw new Error(`Tool calling not supported for provider: ${provider}`);
 					}
@@ -76,17 +85,11 @@ export async function streamAIWithTools(
 							}
 						}
 
-						if (response.text) {
-							try { controller.enqueue(encoder.encode(response.text)); } catch {}
-						}
-						// Continue loop for potential follow-up
+						// Text (if any) already streamed via `emit`. Continue for follow-up.
 						continue;
 					}
 
-					// No tool calls — emit text and finish
-					if (response.text) {
-						try { controller.enqueue(encoder.encode(response.text)); } catch {}
-					}
+					// No tool calls — text already streamed via `emit`. Finish.
 					break;
 				}
 			} catch (e: any) {
@@ -109,7 +112,8 @@ async function callOpenAIWithTools(
 	messages: ChatMessage[],
 	systemPrompt: string,
 	tools: ToolDefinition[],
-	signal?: AbortSignal
+	signal: AbortSignal | undefined,
+	emit: Emit
 ): Promise<ToolCallResponse> {
 	const { base_url, model_name, api_key } = connector;
 	const url = `${base_url.replace(/\/+$/, '')}/chat/completions`;
@@ -134,37 +138,41 @@ async function callOpenAIWithTools(
 		],
 		tools: openaiTools,
 		tool_choice: 'auto',
-		max_tokens: 16384
+		max_tokens: 16384,
+		// Streaming keeps the connection alive through MiniMax-M3's long <think>
+		// reasoning. The non-streaming endpoint caps such requests at ~30s and
+		// returns a body that strips to empty (truncated mid-reasoning).
+		stream: true
 	};
 
-	const res = await fetch(url, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			...(api_key ? { Authorization: `Bearer ${api_key}` } : {})
-		},
-		body: JSON.stringify(body),
-		signal
-	});
+	// Guard only the connect/headers phase; once bytes flow, the idle watchdog
+	// inside consumeOpenAIToolStream governs liveness. A user abort cancels both.
+	const connectController = new AbortController();
+	const connectTimer = setTimeout(() => connectController.abort(new Error('Upstream connect timeout after 60s')), 60000);
+	signal?.addEventListener('abort', () => connectController.abort(signal.reason), { once: true });
+
+	let res: Response;
+	try {
+		res = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(api_key ? { Authorization: `Bearer ${api_key}` } : {})
+			},
+			body: JSON.stringify(body),
+			signal: connectController.signal
+		});
+	} finally {
+		clearTimeout(connectTimer);
+	}
 
 	if (!res.ok) {
 		const err = await res.text();
 		throw new Error(`OpenAI API error: ${res.status} - ${err}`);
 	}
+	if (!res.body) throw new Error('No response body');
 
-	const data = await res.json();
-	const choice = data.choices?.[0];
-	const msg = choice?.message;
-
-	if (msg?.tool_calls && msg.tool_calls.length > 0) {
-		const toolCalls: ToolCall[] = msg.tool_calls.map((tc: any) => ({
-			name: tc.function.name,
-			arguments: tc.function.arguments ? JSON.parse(tc.function.arguments) : {}
-		}));
-		return { text: stripReasoning(msg.content) || null, toolCalls, finishReason: choice.finish_reason };
-	}
-
-	return { text: stripReasoning(msg?.content) || null, toolCalls: null, finishReason: choice?.finish_reason || 'stop' };
+	return consumeOpenAIToolStream(res.body, emit, signal);
 }
 
 async function callAnthropicWithTools(
@@ -172,7 +180,8 @@ async function callAnthropicWithTools(
 	messages: ChatMessage[],
 	systemPrompt: string,
 	tools: ToolDefinition[],
-	signal?: AbortSignal
+	signal: AbortSignal | undefined,
+	emit: Emit
 ): Promise<ToolCallResponse> {
 	const { base_url, model_name, api_key } = connector;
 	const url = `${base_url.replace(/\/+$/, '')}/v1/messages`;
@@ -223,6 +232,7 @@ async function callAnthropicWithTools(
 		}))
 		: null;
 
+	if (text) emit(text);
 	return { text, toolCalls, finishReason: data.stop_reason || 'end_turn' };
 }
 
@@ -231,7 +241,8 @@ async function callGeminiWithTools(
 	messages: ChatMessage[],
 	systemPrompt: string,
 	tools: ToolDefinition[],
-	signal?: AbortSignal
+	signal: AbortSignal | undefined,
+	emit: Emit
 ): Promise<ToolCallResponse> {
 	const { base_url, model_name, api_key } = connector;
 	const url = `${base_url.replace(/\/+$/, '')}/v1beta/models/${model_name}:generateContent?key=${api_key}`;
@@ -284,5 +295,6 @@ async function callGeminiWithTools(
 		}))
 		: null;
 
+	if (text) emit(text);
 	return { text, toolCalls, finishReason: cand?.finishReason || 'STOP' };
 }

@@ -44,7 +44,10 @@ export async function consumeOpenAIToolStream(
 	body: ReadableStream<Uint8Array>,
 	emit: (text: string) => void,
 	signal?: AbortSignal,
-	idleMs = 90000
+	idleMs = 90000,
+	// Fires whenever a tool call's arguments grow, with the full accumulated args
+	// string so far. Powers live document preview (decode partial content_json).
+	onToolArgsDelta?: (index: number, name: string, argsSoFar: string) => void
 ): Promise<ToolCallResponse> {
 	const reader = body.getReader();
 	const decoder = new TextDecoder();
@@ -74,8 +77,10 @@ export async function consumeOpenAIToolStream(
 				const idx = tc.index ?? 0;
 				const acc = toolAccs.get(idx) || { name: '', args: '' };
 				if (tc.function?.name) acc.name = tc.function.name;
-				if (typeof tc.function?.arguments === 'string') acc.args += tc.function.arguments;
+				const grew = typeof tc.function?.arguments === 'string' && tc.function.arguments.length > 0;
+				if (grew) acc.args += tc.function.arguments;
 				toolAccs.set(idx, acc);
+				if (grew && acc.name) onToolArgsDelta?.(idx, acc.name, acc.args);
 			}
 		}
 

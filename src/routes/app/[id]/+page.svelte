@@ -19,6 +19,7 @@
 		app.rootDocuments = data.rootDocuments;
 		app.sidebarView = 'project-detail';
 		app.currentDoc = null;
+		app.streamingDoc = null;
 		app.messages = [];
 		app.mentions = [];
 		app.expandedFolderIds = new Set();

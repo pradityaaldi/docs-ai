@@ -66,6 +66,7 @@ export async function sendProjectMessage() {
 	app.status.toolCallsCompleted = 0;
 	app.status.toolCallCurrent = '';
 	app.status.toolResults = [];
+	app.streamingDoc = null;
 
 	// Capture + clear @-mentions for this send (content injected server-side).
 	const mentionIds = app.mentions.map((m) => m.id);
@@ -89,7 +90,7 @@ export async function sendProjectMessage() {
 		const res = await fetch('/api/chat/tools', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ project_id: projectId, message: userMessage, mention_ids: mentionIds }),
+			body: JSON.stringify({ project_id: projectId, message: userMessage, mention_ids: mentionIds, active_document_id: app.currentDoc?.id ?? null }),
 			signal: controller.signal
 		});
 
@@ -113,6 +114,46 @@ export async function sendProjectMessage() {
 		let raw = '';
 		const seenToolPos = new Set<number>();
 		const affectedDocIds: string[] = [];
+
+		// Live document streaming: the server pushes `__DOC__:start` then a run of
+		// `__DOC__:delta` events. We reassemble the deltas into a growing doc and feed
+		// it to the preview via app.streamingDoc, which the tolerant salvageDoc parser
+		// renders mid-write. `docCursor` marks how far raw has been scanned for events.
+		let docCursor = 0;
+		let streamContent = '';
+		let streamTitle = '';
+		let streamDocId: string | null = null;
+		let shownStreamDoc = false;
+
+		const handleDocEvents = () => {
+			let idx: number;
+			while ((idx = raw.indexOf('__DOC__:', docCursor)) !== -1) {
+				const nl = raw.indexOf('\n', idx);
+				if (nl === -1) break; // line not fully arrived yet — resume next read
+				const rest = raw.slice(idx + '__DOC__:'.length, nl);
+				docCursor = nl + 1;
+				const ci = rest.indexOf(':');
+				if (ci === -1) continue;
+				const kind = rest.slice(0, ci);
+				const payload = rest.slice(ci + 1);
+				if (kind === 'start') {
+					streamContent = '';
+					try {
+						const d = JSON.parse(payload);
+						streamTitle = d.title || '';
+						streamDocId = d.document_id || null;
+					} catch { streamTitle = ''; streamDocId = null; }
+					if (!shownStreamDoc) {
+						shownStreamDoc = true;
+						app.previewTab = 'preview';
+						showMobileDoc();
+					}
+				} else if (kind === 'delta') {
+					try { streamContent += JSON.parse(payload); } catch { continue; }
+				}
+				app.streamingDoc = { title: streamTitle, content: streamContent, documentId: streamDocId };
+			}
+		};
 
 		// Apply one tool event to status; track created/updated doc ids so we can
 		// surface the result in the editor afterwards.
@@ -161,6 +202,8 @@ export async function sendProjectMessage() {
 				handleToolEvent(m[1], m[2]);
 			}
 
+			handleDocEvents();
+
 			// Error sentinel
 			const errIdx = raw.indexOf('\n__ERROR__:');
 			if (errIdx >= 0) {
@@ -171,8 +214,12 @@ export async function sendProjectMessage() {
 				return;
 			}
 
-			// Visible chat text = stream minus tool markers + reasoning.
-			const visible = raw.replace(/__TOOL__:[^\n]*\n?/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+			// Visible chat text = stream minus tool/doc markers + reasoning.
+			const visible = raw
+				.replace(/__TOOL__:[^\n]*\n?/g, '')
+				.replace(/__DOC__:[^\n]*\n?/g, '')
+				.replace(/<think>[\s\S]*?<\/think>/g, '')
+				.trim();
 			app.messages = app.messages.map((mm) => (mm.id === assistantMsgId ? { ...mm, content: visible } : mm));
 
 			app.status.bytesReceived = raw.length;
@@ -193,6 +240,12 @@ export async function sendProjectMessage() {
 		} else if (app.currentDoc) {
 			await selectDocument({ id: app.currentDoc.id });
 		}
+		// Saved doc is loaded in currentDoc. Don't yank the overlay — flag it done so
+		// the preview's typewriter finishes revealing, then swaps itself out. This is
+		// what makes a fast (whole-dump) stream still play its animation.
+		if (streamContent) {
+			app.streamingDoc = { title: streamTitle, content: streamContent, documentId: streamDocId, done: true };
+		}
 		setPhase('idle', '');
 	} catch (e: any) {
 		if (e.name === 'AbortError') {
@@ -201,6 +254,7 @@ export async function sendProjectMessage() {
 		} else {
 			setPhase('error', 'Request failed', e.message || String(e));
 		}
+		app.streamingDoc = null;
 	} finally {
 		app.isLoading = false;
 		app.abortController = null;

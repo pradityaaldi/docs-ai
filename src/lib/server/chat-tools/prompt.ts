@@ -37,16 +37,51 @@ export function buildMentionContext(docs: { title: string; content: string }[]):
 	return `File yang dirujuk user (untuk konteks/edit):\n\n${blocks.join('\n\n')}`;
 }
 
-export function buildSystemPrompt(projectName: string, folderList: string, documentList: string): string {
+// One-line label for a block, for the indexed outline shown to the model.
+function blockLabel(b: any): string {
+	const clip = (s: string) => (s.length > 80 ? s.slice(0, 80) + '…' : s).replace(/\s+/g, ' ').trim();
+	switch (b?.type) {
+		case 'heading': return `heading${b.level ? ` h${b.level}` : ''}: ${clip(b.text || '')}`;
+		case 'paragraph': return `paragraph: ${clip(b.text || (Array.isArray(b.runs) ? b.runs.map((r: any) => r.text).join('') : ''))}`;
+		case 'bullet': return `bullet: ${clip((b.items || []).join(' • '))}`;
+		case 'numbered': return `numbered: ${clip((b.items || []).join(' • '))}`;
+		case 'table': return `table: [${(b.headers || []).join(', ')}]`;
+		case 'quote': return `quote: ${clip(b.text || '')}`;
+		case 'code': return `code: ${clip(b.text || '')}`;
+		default: return String(b?.type || 'unknown');
+	}
+}
+
+/**
+ * Indexed outline of a document's blocks so the model can target edits by index
+ * with update_document_blocks. Returns '' when the content has no block array.
+ */
+export function buildBlockOutline(content: string): string {
+	let doc: any;
+	try { doc = JSON.parse(content || '{}'); } catch { return ''; }
+	if (!doc || !Array.isArray(doc.content)) return '';
+	return doc.content.map((b: any, i: number) => `  [${i}] ${blockLabel(b)}`).join('\n');
+}
+
+// Context block for the document the user currently has open — its indexed
+// outline, so a follow-up like "fix the second paragraph" can target by index.
+export function buildActiveDocContext(title: string, content: string): string {
+	const outline = buildBlockOutline(content);
+	if (!outline) return '';
+	return `The user is currently viewing this document (edit it with update_document_blocks, targeting blocks by their [index]):\n--- "${title}" ---\n${outline}`;
+}
+
+export function buildSystemPrompt(projectName: string, folderList: string, documentList: string, activeDocContext = ''): string {
 	return `You are a document generator that operates on projects. You have access to tools to create, update, and delete documents.
 
 Project: "${projectName}"
 ${folderList}
 ${documentList}
-
+${activeDocContext ? `\n${activeDocContext}\n` : ''}
 TOOLS AVAILABLE:
 - create_document: Create a new document in this project
-- update_document: Update an existing document's title or content
+- update_document: Replace an existing document's full content (use only for large rewrites)
+- update_document_blocks: Edit specific blocks of a document by their [index] — the preferred way to make local edits
 - delete_document: Delete a document from the project
 
 DOCUMENT FORMAT:
@@ -106,6 +141,7 @@ IMPORTANT RULES:
 7. When specifying folder_id, use one of the folder IDs listed above, or omit for root-level documents.
 8. NEVER wrap output in <think> tags or code fences.
 9. Localize to match the user's language.
-10. To MODIFY / EDIT / REWRITE an existing document, call update_document with its id from the "Existing documents" list above and pass the new content_json. NEVER delete-and-recreate just to change content, and never claim you "cannot edit" — update_document exists for exactly this. Only use create_document for genuinely new documents.
-11. Any request to write, create, edit, change, add to, replace, or rewrite a document MUST be carried out with an actual tool call (create_document / update_document) containing the complete content_json. Do NOT only describe the change in prose — if you did not call a tool, the document did not change. Never claim success unless you actually called the tool.`;
+10. To MODIFY / EDIT an existing document, prefer update_document_blocks: target the specific block(s) by their [index] from the outline and pass only the new block(s). This is cheaper and only re-renders what changed. Use update_document (full content_json) only for a large rewrite of most of the document. NEVER delete-and-recreate to change content, and never claim you "cannot edit". Only use create_document for genuinely new documents.
+11. For update_document_blocks, build the operations array carefully: indices refer to the document's CURRENT blocks (the outline). To change a block use "replace"; to add use "insert_before"/"insert_after"; to remove use "delete". Each non-delete op needs a complete DOCX "block" object.
+12. Any request to write, create, edit, change, add to, replace, or rewrite a document MUST be carried out with an actual tool call. Do NOT only describe the change in prose — if you did not call a tool, the document did not change. Never claim success unless you actually called the tool.`;
 }

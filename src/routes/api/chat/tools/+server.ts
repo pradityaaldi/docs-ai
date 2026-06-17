@@ -2,7 +2,7 @@ import { streamAIWithTools, type ChatMessage } from '$lib/server/ai';
 import { getActiveAIConnector } from '$lib/server/ai-config';
 import { db, projects, documents, folders, messages } from '$lib/server/db';
 import { eq, and, asc, inArray } from 'drizzle-orm';
-import { buildFolderList, buildDocumentList, buildSystemPrompt, buildMentionContext } from '$lib/server/chat-tools/prompt';
+import { buildFolderList, buildDocumentList, buildSystemPrompt, buildMentionContext, buildActiveDocContext } from '$lib/server/chat-tools/prompt';
 import { TOOL_DEFINITIONS, executeToolCall } from '$lib/server/chat-tools/tools';
 import { trimHistoryToBudget, estimateTokens, CONTEXT_WINDOW, REPLY_RESERVE } from '$lib/shared/tokens';
 import { stripToolCallJson } from '$lib/shared/tool-call-text';
@@ -18,7 +18,7 @@ function jsonError(error: string, status: number): Response {
 const MAX_MENTIONS = 8;
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { project_id, message, mention_ids } = await request.json();
+	const { project_id, message, mention_ids, active_document_id } = await request.json();
 
 	if (!project_id) return jsonError('Missing project_id', 400);
 	if (!message || !message.trim()) return jsonError('Missing message', 400);
@@ -59,7 +59,16 @@ export const POST: RequestHandler = async ({ request }) => {
 		.select({ id: documents.id, title: documents.title, folder_id: documents.folderId })
 		.from(documents)
 		.where(eq(documents.projectId, project_id));
-	const systemPrompt = buildSystemPrompt(project.name, buildFolderList(folderRows), buildDocumentList(docRows));
+	// Indexed outline of the doc the user is viewing, so edits can target by index.
+	let activeDocContext = '';
+	if (active_document_id) {
+		const [activeDoc] = await db
+			.select({ title: documents.title, content: documents.content })
+			.from(documents)
+			.where(and(eq(documents.id, active_document_id), eq(documents.projectId, project_id)));
+		if (activeDoc) activeDocContext = buildActiveDocContext(activeDoc.title, activeDoc.content);
+	}
+	const systemPrompt = buildSystemPrompt(project.name, buildFolderList(folderRows), buildDocumentList(docRows), activeDocContext);
 
 	// Multi-turn context: history + (mentions + this message), trimmed to budget.
 	const userContent = mentionContext ? `${mentionContext}\n\n---\n\n${message}` : message;
@@ -120,7 +129,9 @@ export const POST: RequestHandler = async ({ request }) => {
 					console.log(`[TOOLS] done len=${assistantResponse.length} elapsed=${Date.now() - t0}ms`);
 
 					// Save assistant reply (strip tool event markers + any tool-call JSON).
-					const cleanReply = stripToolCallJson(assistantResponse.replace(/__TOOL__:[^\n]*\n/g, ''));
+					const cleanReply = stripToolCallJson(
+						assistantResponse.replace(/__TOOL__:[^\n]*\n/g, '').replace(/__DOC__:[^\n]*\n/g, '')
+					);
 					if (cleanReply && !signal.aborted) {
 						await db.insert(messages).values({ projectId: project_id, role: 'assistant', content: cleanReply });
 					}

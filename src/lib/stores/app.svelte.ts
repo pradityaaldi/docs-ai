@@ -108,6 +108,14 @@ export interface ChatStatus {
 	toolResults: ToolResultEntry[];
 }
 
+// A document being streamed into the live preview, reassembled from wire deltas.
+export interface StreamingDoc {
+	title: string;
+	content: string;
+	documentId: string | null;
+	done?: boolean;
+}
+
 export interface CurrentUser {
 	id: string;
 	email: string;
@@ -127,6 +135,11 @@ export const app = $state({
 	projectTree: [] as TreeNode[],
 	rootDocuments: [] as DocEntry[],
 	currentDoc: null as Document | null,
+	// Live preview of a document the AI is writing right now (deltas reassembled
+	// client-side). Overrides currentDoc in the preview while set. `done` = network
+	// finished + saved doc ready; the preview keeps the overlay until its typewriter
+	// animation catches up, then clears it (so a fast stream still animates fully).
+	streamingDoc: null as StreamingDoc | null,
 	messages: [] as Message[],
 	// Files @-mentioned in the composer, attached to the next message.
 	mentions: [] as MentionItem[],

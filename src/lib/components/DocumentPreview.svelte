@@ -16,6 +16,57 @@
 	let lastFormattedSig = $state('');
 	let autoFormatTimer: ReturnType<typeof setTimeout> | null = null;
 
+	// Typewriter reveal: how many chars of the streaming doc are currently shown.
+	// Lets a whole-dump (Gemini returns the doc at once) still animate word-by-word.
+	let revealed = $state(0);
+	let tailMarker = $state<HTMLDivElement>();
+
+	$effect(() => {
+		void app.streamingDoc; // re-arm when the stream starts / grows / is flagged done
+		if (!app.streamingDoc) { revealed = 0; return; }
+		let raf = 0;
+		let last = -1;
+		raf = requestAnimationFrame(function tick(now) {
+			const sd = app.streamingDoc;
+			if (!sd) return;
+			const target = sd.content.length;
+			if (last < 0) last = now;
+			const dt = (now - last) / 1000;
+			last = now;
+			if (revealed < target) {
+				// Time-based (not per-frame) so the pace is identical on 60Hz and 120Hz
+				// displays. Reveal the whole doc over ~`duration` seconds — longer docs
+				// get a bit longer, capped — so it reads as deliberate typing.
+				const duration = Math.min(8, Math.max(4, target / 600));
+				revealed = Math.min(target, revealed + (target / duration) * dt);
+				raf = requestAnimationFrame(tick);
+			} else if (sd.done) {
+				// Caught up and the saved doc is ready — hand off to currentDoc.
+				app.streamingDoc = null;
+			}
+		});
+		return () => cancelAnimationFrame(raf);
+	});
+
+	// Keep the preview tracking the writing tail. Pages are fixed A4 height even when
+	// half-filled, so pinning to scrollHeight would jump into the blank bottom of the
+	// current page. Instead scroll to the tail sentinel's real on-screen position
+	// (accounts for the page scale transform) and hold it ~3/4 down the viewport.
+	$effect(() => {
+		void revealed;
+		if (!app.streamingDoc) return;
+		const c = app.previewContainer;
+		if (!c) return;
+		requestAnimationFrame(() => {
+			const m = tailMarker;
+			if (!m) return;
+			const max = c.scrollHeight - c.clientHeight;
+			if (max <= 0) return; // whole doc already fits — nothing to follow
+			const tail = m.getBoundingClientRect().top - c.getBoundingClientRect().top + c.scrollTop;
+			c.scrollTop = Math.max(0, Math.min(max, tail - c.clientHeight * 0.7));
+		});
+	});
+
 	async function runPrettier(src: string): Promise<string> {
 		return (await prettier.format(src, {
 			parser: 'json',
@@ -82,7 +133,10 @@
 
 	let docCtx = $derived.by<DocCtx | null>(() => {
 		void illustrationTick;
-		const raw = app.currentDoc?.content || '';
+		// While the AI is writing, the live stream overlay wins over the saved doc,
+		// sliced to the typewriter cursor so the text reveals progressively.
+		const sd = app.streamingDoc;
+		const raw = sd ? sd.content.slice(0, revealed) : (app.currentDoc?.content || '');
 		if (!raw) return null;
 		const doc = salvageDoc(raw);
 		if (!doc) return null;
@@ -133,6 +187,38 @@
 		});
 		return () => cancelAnimationFrame(id);
 	});
+
+	// Localized edit animation: when the *same* open document changes (e.g. a
+	// targeted block edit), animate only the blocks whose rendered HTML is new —
+	// unchanged blocks keep their DOM and don't re-animate. Creates are skipped
+	// (they animate via the streaming typewriter). Identity = the block HTML string.
+	let lastDocId: string | null = null;
+	let lastBlocks = new Set<string>();
+	let changedBlocks = $state(new Set<string>());
+	let changedClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+	$effect(() => {
+		if (app.streamingDoc) return; // create stream → typewriter owns the animation
+		const doc = app.currentDoc;
+		const ctx = docCtx;
+		if (!doc || !ctx) return;
+		const blocks = ctx.blocks;
+		if (doc.id !== lastDocId) {
+			// Opened / switched document — adopt its blocks without animating.
+			lastDocId = doc.id;
+			lastBlocks = new Set(blocks);
+			changedBlocks = new Set();
+			return;
+		}
+		const changed = new Set<string>();
+		for (const b of blocks) if (!lastBlocks.has(b)) changed.add(b);
+		lastBlocks = new Set(blocks);
+		if (changed.size) {
+			changedBlocks = changed;
+			if (changedClearTimer) clearTimeout(changedClearTimer);
+			changedClearTimer = setTimeout(() => { changedBlocks = new Set(); changedClearTimer = null; }, 900);
+		}
+	});
 </script>
 
 <div class="{app.mobileView === 'document' ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col bg-[var(--bg-subtle)] lg:flex">
@@ -146,6 +232,11 @@
 					class="w-full bg-transparent px-0.5 py-0.5 text-sm font-semibold text-[var(--fg-base)] outline-none transition-colors placeholder-[var(--fg-disabled)]"
 				/>
 				<p class="hidden px-0.5 text-[11px] text-[var(--fg-muted)] sm:block">Preview and structured JSON editor</p>
+			{:else if app.streamingDoc}
+				<div class="flex items-center gap-2 px-0.5 py-0.5">
+					<span class="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--fg-interactive)]"></span>
+					<span class="truncate text-sm font-semibold text-[var(--fg-base)]">{app.streamingDoc.title || 'Menulis dokumen…'}</span>
+				</div>
 			{:else}
 				<span class="text-sm text-[var(--fg-muted)]">No document selected</span>
 			{/if}
@@ -224,8 +315,12 @@
 										style="padding:{PAGE_PAD}px;height:{PAGE_H}px;box-sizing:border-box;font-family:{docCtx.font},sans-serif;font-size:{docCtx.bodySize}pt;line-height:1.5;color:#1e293b"
 									>
 										{#each pageBlocks as html}
-											{@html html}
+											<div class:blk-enter={changedBlocks.has(html)}>{@html html}</div>
 										{/each}
+										{#if app.streamingDoc && idx === pages.length - 1}
+											<!-- marks the writing tail so auto-follow scrolls to the real text, not the blank page bottom -->
+											<div bind:this={tailMarker} style="height:1px"></div>
+										{/if}
 									</div>
 									<div class="absolute bottom-2 right-3 text-[10px] text-gray-400 tabular-nums select-none">{idx + 1} / {pages.length}</div>
 								</div>
@@ -279,3 +374,17 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	/* Entrance for a block that just changed via a targeted edit. */
+	.blk-enter {
+		animation: blkEnter 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	@keyframes blkEnter {
+		from { opacity: 0; transform: translateY(8px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.blk-enter { animation: none; }
+	}
+</style>

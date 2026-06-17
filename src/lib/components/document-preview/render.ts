@@ -67,8 +67,53 @@ export function salvageDoc(content: string): { meta: any; content: any[] } | nul
 		try { elements.push(JSON.parse(s.slice(i, j))); } catch { break; }
 		i = j;
 	}
+	// Also render the in-progress trailing element (the one still being typed) so
+	// the live preview reveals text word-by-word, not just whole-block-by-block.
+	if (i < s.length) {
+		while (i < s.length && /[\s,]/.test(s[i])) i++;
+		if (s[i] === '{') {
+			const frag = s.slice(i);
+			// Back off to the longest parseable prefix so the block being typed stays
+			// on screen between awkward token boundaries instead of flickering away.
+			for (let cut = 0; cut <= Math.min(16, frag.length - 1); cut++) {
+				const partial = repairPartialElement(frag.slice(0, frag.length - cut));
+				if (partial) { elements.push(partial); break; }
+			}
+		}
+	}
 	if (elements.length === 0) return null;
 	return { meta, content: elements };
+}
+
+/**
+ * Best-effort parse of a half-streamed trailing element: close any open string /
+ * brackets and drop dangling separators so the element being typed renders with
+ * its partial text. Returns null if it still can't form a valid doc element —
+ * the caller simply skips it that frame.
+ */
+function repairPartialElement(frag: string): any | null {
+	let inStr = false, esc = false;
+	const stack: string[] = [];
+	for (let k = 0; k < frag.length; k++) {
+		const c = frag[k];
+		if (esc) { esc = false; continue; }
+		if (c === '\\') { esc = true; continue; }
+		if (inStr) { if (c === '"') inStr = false; continue; }
+		if (c === '"') { inStr = true; continue; }
+		if (c === '{' || c === '[') stack.push(c);
+		else if (c === '}' || c === ']') stack.pop();
+	}
+	let out = frag;
+	if (esc) out = out.slice(0, -1);   // dangling backslash
+	if (inStr) out += '"';             // unterminated string
+	out = out.replace(/[\s]*[,:]\s*$/, ''); // trailing separator with no value
+	for (let k = stack.length - 1; k >= 0; k--) out += stack[k] === '{' ? '}' : ']';
+	try {
+		const o = JSON.parse(out);
+		return o && typeof o === 'object' && o.type ? o : null;
+	} catch {
+		return null;
+	}
 }
 
 /**

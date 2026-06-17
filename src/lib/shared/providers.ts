@@ -18,7 +18,7 @@ export const PROVIDER_LABELS: Record<AIProviderId, string> = {
 export const PROVIDER_MODELS: Record<AIProviderId, string[]> = {
 	openai: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5', 'gpt-5-mini'],
 	anthropic: ['claude-opus-4-1', 'claude-sonnet-4-5', 'claude-3-7-sonnet', 'claude-3-5-haiku'],
-	gemini: ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash', 'gemini-3.5-flash', 'gemini-3.1-pro'],
+	gemini: ['gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash', 'gemini-3.5-flash', 'gemini-3.1-pro'],
 	// MiniMax is OpenAI-compatible (/chat/completions, Bearer auth).
 	minimax: [
 		'MiniMax-M3',

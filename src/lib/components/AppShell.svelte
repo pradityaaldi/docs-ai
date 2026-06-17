@@ -19,7 +19,7 @@
 				<a href="/app" class="text-sm text-[var(--fg-interactive)] hover:underline">Project</a>
 				<a href="/templates" class="text-sm text-[var(--fg-interactive)] hover:underline">Galeri Template</a>
 				{#if app.currentUser?.role === 'admin'}
-					<a href="/admin" class="text-sm text-[var(--fg-interactive)] hover:underline">Admin</a>
+					<a href="/manage" class="text-sm text-[var(--fg-interactive)] hover:underline">Kelola</a>
 				{/if}
 				<UserMenu />
 			</nav>

@@ -86,5 +86,6 @@ export const GET: RequestHandler = async (event) => {
 	const session = await createSession(userId);
 	setSessionCookie(event, session.id, session.expiresAt);
 
-	throw redirect(302, '/app');
+	const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
+	throw redirect(302, u?.role === 'admin' ? '/manage' : '/app');
 };

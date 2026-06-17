@@ -37,7 +37,7 @@
 				error = data.error || 'Login gagal';
 				return;
 			}
-			goto('/app');
+			goto(data.user?.role === 'admin' ? '/manage' : '/app');
 		} finally {
 			loading = false;
 		}

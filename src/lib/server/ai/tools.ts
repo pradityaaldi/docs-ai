@@ -54,13 +54,11 @@ export async function streamAIWithTools(
 
 					// If the model wants to use tools
 					if (response.toolCalls && response.toolCalls.length > 0) {
-						// Add assistant message with tool calls to history
-						const toolCallParts = response.toolCalls.map(tc => ({
-							type: 'tool_call' as const,
-							name: tc.name,
-							arguments: tc.arguments,
-						}));
-						workingMessages.push({ role: 'assistant', content: JSON.stringify({ tool_calls: toolCallParts }) });
+						// Record tool calls in history as a neutral note — never the raw
+						// `{"tool_calls":…}` JSON, which trains the model to emit tool calls
+						// as plain text instead of via the API field.
+						const calledNames = response.toolCalls.map((tc) => tc.name).join(', ');
+						workingMessages.push({ role: 'assistant', content: `[issued tool calls: ${calledNames}]` });
 
 						// Execute each tool call
 						for (let i = 0; i < response.toolCalls.length; i++) {

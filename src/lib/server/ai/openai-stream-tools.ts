@@ -1,5 +1,6 @@
 import type { ToolCall, ToolCallResponse } from './types';
 import { makeReasoningStripper } from './reasoning';
+import { splitToolCallJson, parseToolCallsBlock } from '$lib/shared/tool-call-text';
 
 // Accumulator for one streamed OpenAI tool_call (arguments arrive as fragments).
 interface ToolAcc {
@@ -34,8 +35,10 @@ function readWithIdle(
  * `<think>` reasoning — the non-streaming endpoint caps such requests at ~30s
  * and returns a truncated, empty-after-strip body.
  *
- * Visible content deltas are stripped of reasoning and pushed live via `emit`.
- * tool_call fragments are accumulated by index, then parsed into ToolCall[].
+ * Content is buffered (not streamed live) because M3 may embed a tool-call
+ * JSON block in it that must be extracted, not shown. After the stream ends the
+ * cleaned text is emitted once; tool calls come from both the native tool_calls
+ * field and any `{"tool_calls":…}` block found in the text.
  */
 export async function consumeOpenAIToolStream(
 	body: ReadableStream<Uint8Array>,
@@ -60,8 +63,10 @@ export async function consumeOpenAIToolStream(
 		const delta = choice.delta || {};
 
 		if (typeof delta.content === 'string' && delta.content) {
+			// Buffer, don't emit live: content may carry a tool-call JSON block we
+			// must strip. Cleaned text is emitted once the stream finishes.
 			const out = strip(delta.content);
-			if (out) { fullText += out; emit(out); }
+			if (out) fullText += out;
 		}
 
 		if (Array.isArray(delta.tool_calls)) {
@@ -100,6 +105,7 @@ export async function consumeOpenAIToolStream(
 		reader.releaseLock?.();
 	}
 
+	// Native tool calls (delta.tool_calls fragments).
 	const toolCalls: ToolCall[] = [];
 	for (const acc of toolAccs.values()) {
 		if (!acc.name) continue;
@@ -108,8 +114,16 @@ export async function consumeOpenAIToolStream(
 		toolCalls.push({ name: acc.name, arguments: args });
 	}
 
+	// Tool calls the model emitted as text content instead of via the API field.
+	const { text: cleanText, jsonBlocks } = splitToolCallJson(fullText);
+	for (const block of jsonBlocks) {
+		for (const c of parseToolCallsBlock(block)) toolCalls.push({ name: c.name, arguments: c.arguments });
+	}
+
+	if (cleanText) emit(cleanText);
+
 	return {
-		text: fullText || null,
+		text: cleanText || null,
 		toolCalls: toolCalls.length ? toolCalls : null,
 		finishReason
 	};

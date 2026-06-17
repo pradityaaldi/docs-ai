@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { app } from '$lib/stores/app.svelte';
+	import { app, showMobileDoc } from '$lib/stores/app.svelte';
 	import { exitToProjects, createDocument, createFolder, selectDocument, deleteDocument, generateProjectDoc } from '$lib/actions';
 	import TreeItem from '$lib/components/ui/TreeItem.svelte';
 	import FileRow from '$lib/components/ui/FileRow.svelte';
@@ -14,6 +14,7 @@
 	async function onSelectDocument(docId: string) {
 		app.navigatingFolderId = null;
 		await selectDocument({ id: docId });
+		showMobileDoc();
 	}
 </script>
 

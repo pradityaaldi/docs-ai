@@ -134,6 +134,9 @@ export const app = $state({
 	selectMode: false,
 	selectedMsgIds: [] as string[],
 	sidebarView: 'projects' as 'projects' | 'project-detail',
+	// Mobile workspace nav: which single pane is visible (<lg), + files drawer toggle.
+	mobileView: 'chat' as 'chat' | 'document',
+	mobileSidebarOpen: false,
 	expandedFolderIds: new Set<string>(),
 	navigatingFolderId: null as string | null,
 	renamingDocId: null as string | null,
@@ -164,6 +167,13 @@ export const app = $state({
 	zoom: -1,
 	previewContainer: null as HTMLElement | null,
 });
+
+// Mobile-only: jump the visible pane to the document and close the files drawer.
+// No-op visually on desktop where both panes show side-by-side.
+export function showMobileDoc() {
+	app.mobileView = 'document';
+	app.mobileSidebarOpen = false;
+}
 
 export function setPhase(phase: ChatPhase, message: string, errorMsg = '') {
 	app.status.phase = phase;

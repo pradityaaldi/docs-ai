@@ -1,4 +1,4 @@
-import { app, setPhase, type MentionItem, type TreeNode } from '$lib/stores/app.svelte';
+import { app, setPhase, showMobileDoc, type MentionItem, type TreeNode } from '$lib/stores/app.svelte';
 import { refreshTree } from './projects';
 import { selectDocument } from './documents';
 
@@ -189,6 +189,7 @@ export async function sendProjectMessage() {
 		if (lastDoc) {
 			app.previewTab = 'preview';
 			await selectDocument({ id: lastDoc });
+			showMobileDoc();
 		} else if (app.currentDoc) {
 			await selectDocument({ id: app.currentDoc.id });
 		}
@@ -269,7 +270,7 @@ export async function generateProjectDoc() {
 		app.currentProject = { ...proj, status: 'generated' };
 		app.projects = app.projects.map((p) => (p.id === proj.id ? { ...p, status: 'generated' } : p));
 		await refreshTree();
-		if (doneDocId) await selectDocument({ id: doneDocId });
+		if (doneDocId) { await selectDocument({ id: doneDocId }); showMobileDoc(); }
 		setPhase('idle', '');
 	} catch (e: any) {
 		if (e?.name === 'AbortError') setPhase('aborted', 'Dihentikan.');

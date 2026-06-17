@@ -1,4 +1,4 @@
-import { app } from '$lib/stores/app.svelte';
+import { app, showMobileDoc } from '$lib/stores/app.svelte';
 import { confirmAction } from '$lib/stores/confirm.svelte';
 import { refreshTree } from './projects';
 
@@ -45,6 +45,7 @@ export async function createDocument(folderId: string | null = null) {
 	});
 	const newDoc = await res.json();
 	await selectDocument(newDoc);
+	showMobileDoc();
 	await refreshTree();
 	// Drop straight into inline rename so the user names the new file (VSCode-style).
 	app.renamingDocId = newDoc.id;

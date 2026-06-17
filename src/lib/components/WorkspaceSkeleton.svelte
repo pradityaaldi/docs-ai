@@ -17,9 +17,9 @@
 		</div>
 	</div>
 
-	<div class="ml-3 flex min-w-0 flex-1 overflow-hidden rounded-xl border border-[var(--border-base)] bg-[var(--bg-base)] shadow-sm">
+	<div class="flex min-w-0 flex-1 overflow-hidden bg-[var(--bg-base)] lg:ml-3 lg:rounded-xl lg:border lg:border-[var(--border-base)] lg:shadow-sm">
 		<!-- Chat pane -->
-		<div class="flex w-[42%] min-w-[420px] flex-col border-r border-[var(--border-base)] bg-[var(--bg-base)]">
+		<div class="flex w-full flex-col bg-[var(--bg-base)] lg:w-[42%] lg:min-w-[420px] lg:border-r lg:border-[var(--border-base)]">
 			<div class="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--border-base)] px-4">
 				<div class="h-7 w-7 animate-pulse rounded-md bg-[var(--bg-component)]"></div>
 				<div class="flex flex-col gap-1.5">
@@ -38,7 +38,7 @@
 		</div>
 
 		<!-- Document preview pane -->
-		<div class="flex min-w-0 flex-1 flex-col bg-[var(--bg-subtle)]">
+		<div class="hidden min-w-0 flex-1 flex-col bg-[var(--bg-subtle)] lg:flex">
 			<div class="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border-base)] bg-[var(--bg-base)] px-4">
 				<div class="h-3.5 w-40 animate-pulse rounded bg-[var(--bg-component)]"></div>
 				<div class="flex items-center gap-1.5">

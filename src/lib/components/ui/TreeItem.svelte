@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { app, type TreeNode, type DocEntry } from '$lib/stores/app.svelte';
+	import { app, showMobileDoc, type TreeNode, type DocEntry } from '$lib/stores/app.svelte';
 	import {
 		selectDocument,
 		loadFolderContents,
@@ -103,11 +103,11 @@
 		{/each}
 
 		{#each subDocuments as sdoc (sdoc.id)}
-			<FileRow id={sdoc.id} title={sdoc.title} depth={depth + 1} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
+			<FileRow id={sdoc.id} title={sdoc.title} depth={depth + 1} onSelect={async (id) => { await selectDocument({ id }); showMobileDoc(); }} onDelete={onDeleteDoc} />
 		{/each}
 	{:else}
 		{#each node.documents as doc (doc.id)}
-			<FileRow id={doc.id} title={doc.title} depth={depth + 1} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
+			<FileRow id={doc.id} title={doc.title} depth={depth + 1} onSelect={async (id) => { await selectDocument({ id }); showMobileDoc(); }} onDelete={onDeleteDoc} />
 		{/each}
 	{/if}
 {/if}

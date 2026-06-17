@@ -132,9 +132,9 @@
 	});
 </script>
 
-<div class="flex w-[42%] min-w-[420px] flex-col border-r border-[var(--border-base)] bg-[var(--bg-base)]">
-	<div class="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border-base)] px-4">
-		<div class="flex items-center gap-2">
+<div class="{app.mobileView === 'chat' ? 'flex' : 'hidden'} w-full flex-col bg-[var(--bg-base)] lg:flex lg:w-[42%] lg:min-w-[420px] lg:border-r lg:border-[var(--border-base)]">
+	<div class="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--border-base)] px-4">
+		<div class="flex min-w-0 items-center gap-2">
 			<div class="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-base)] bg-[var(--bg-subtle)]">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
 			</div>
@@ -145,7 +145,7 @@
 					onblur={saveName}
 					use:focusOnMount
 					maxlength="120"
-					class="w-56 rounded-md border border-[var(--border-base)] bg-[var(--bg-component)] px-2 py-1 text-sm font-semibold text-[var(--fg-base)] outline-none focus:border-[var(--fg-interactive)]"
+					class="w-40 rounded-md border border-[var(--border-base)] bg-[var(--bg-component)] px-2 py-1 text-sm font-semibold text-[var(--fg-base)] outline-none focus:border-[var(--fg-interactive)] sm:w-56"
 				/>
 			{:else}
 				<div class="flex min-w-0 items-center gap-1.5">
@@ -166,7 +166,7 @@
 				<span class="rounded-full border border-[var(--tag-red-border)] bg-[var(--tag-red-bg)] px-2 py-0.5 text-[10px] text-[var(--tag-red-text)]">AI not configured</span>
 			{/if}
 		</div>
-		<div class="flex items-center gap-2">
+		<div class="flex shrink-0 items-center gap-2">
 			{#if app.currentProject && hasMessages && !isActive}
 				<button
 					onclick={toggleSelectMode}

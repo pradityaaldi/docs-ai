@@ -135,9 +135,9 @@
 	});
 </script>
 
-<div class="flex min-w-0 flex-1 flex-col bg-[var(--bg-subtle)]">
-	<div class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--border-base)] bg-[var(--bg-base)] px-4">
-		<div class="flex-1 min-w-0">
+<div class="{app.mobileView === 'document' ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col bg-[var(--bg-subtle)] lg:flex">
+	<div class="flex shrink-0 flex-col gap-2 border-b border-[var(--border-base)] bg-[var(--bg-base)] px-3 py-2 lg:h-14 lg:flex-row lg:items-center lg:justify-between lg:gap-3 lg:py-0 lg:px-4">
+		<div class="min-w-0 flex-1">
 			{#if app.currentDoc}
 				<input
 					type="text"
@@ -145,14 +145,14 @@
 					onblur={saveDocument}
 					class="w-full bg-transparent px-0.5 py-0.5 text-sm font-semibold text-[var(--fg-base)] outline-none transition-colors placeholder-[var(--fg-disabled)]"
 				/>
-				<p class="px-0.5 text-[11px] text-[var(--fg-muted)]">Preview and structured JSON editor</p>
+				<p class="hidden px-0.5 text-[11px] text-[var(--fg-muted)] sm:block">Preview and structured JSON editor</p>
 			{:else}
 				<span class="text-sm text-[var(--fg-muted)]">No document selected</span>
 			{/if}
 		</div>
 
-		<div class="flex items-center gap-1.5 shrink-0">
-			<div class="flex rounded-lg border border-[var(--border-base)] bg-[var(--bg-subtle)] p-0.5">
+		<div class="flex shrink-0 items-center gap-1.5 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
+			<div class="flex shrink-0 rounded-lg border border-[var(--border-base)] bg-[var(--bg-subtle)] p-0.5">
 				<button
 					onclick={() => app.previewTab = 'preview'}
 					class="rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors {app.previewTab === 'preview' ? 'bg-[var(--bg-component)] text-[var(--fg-base)] shadow-sm ring-1 ring-[var(--border-base)]' : 'text-[var(--fg-subtle)] hover:text-[var(--fg-base)]'}"
@@ -164,7 +164,7 @@
 			</div>
 
 			{#if app.previewTab === 'preview'}
-				<div class="flex items-center gap-0.5 rounded-lg border border-[var(--border-base)] bg-[var(--bg-subtle)] p-0.5">
+				<div class="flex shrink-0 items-center gap-0.5 rounded-lg border border-[var(--border-base)] bg-[var(--bg-subtle)] p-0.5">
 					<button onclick={() => app.zoom = Math.max(0.25, (app.zoom === -1 ? fitZoom : app.zoom) - 0.1)} class="rounded px-1.5 py-1 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-component)] hover:text-[var(--fg-base)]" title="Zoom out">&minus;</button>
 					<span class="text-[11px] text-[var(--fg-subtle)] min-w-[36px] text-center tabular-nums">{Math.round(effectiveZoom * 100)}%</span>
 					<button onclick={() => app.zoom = Math.min(3, (app.zoom === -1 ? fitZoom : app.zoom) + 0.1)} class="rounded px-1.5 py-1 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-component)] hover:text-[var(--fg-base)]" title="Zoom in">+</button>
@@ -175,19 +175,19 @@
 					onclick={() => formatCode()}
 					disabled={!app.currentDoc || formatting}
 					title="Format JSON with Prettier"
-					class="flex items-center gap-1 rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+					class="flex shrink-0 items-center gap-1 rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
 					{formatting ? 'Formatting…' : 'Format'}
 				</button>
 			{/if}
 
-			<div class="mx-1 h-5 w-px bg-[var(--border-base)]"></div>
+			<div class="mx-1 h-5 w-px shrink-0 bg-[var(--border-base)]"></div>
 
-			<button onclick={exportDocx} disabled={!app.currentDoc} class="rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+			<button onclick={exportDocx} disabled={!app.currentDoc} class="shrink-0 rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50">
 				DOCX
 			</button>
-			<button onclick={exportPdf} disabled={!app.currentDoc} class="rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+			<button onclick={exportPdf} disabled={!app.currentDoc} class="shrink-0 rounded-lg border border-[var(--border-base)] bg-[var(--button-neutral)] px-2.5 py-1.5 text-xs text-[var(--fg-base)] transition-colors hover:bg-[var(--button-neutral-hover)] disabled:cursor-not-allowed disabled:opacity-50">
 				PDF
 			</button>
 		</div>

@@ -4,6 +4,9 @@ import { consumeOpenAIToolStream } from './openai-stream-tools';
 // Emits visible assistant text to the client wire as it arrives.
 type Emit = (text: string) => void;
 
+// Cap tool→follow-up cycles so a confused model can't loop indefinitely.
+const MAX_TOOL_ROUNDS = 6;
+
 export async function streamAIWithTools(
 	connector: AIConnector,
 	messages: ChatMessage[],
@@ -33,6 +36,7 @@ export async function streamAIWithTools(
 			const emit: Emit = (text) => {
 				try { controller.enqueue(encoder.encode(text)); } catch {}
 			};
+			let toolRounds = 0;
 
 			try {
 				while (true) {
@@ -54,11 +58,10 @@ export async function streamAIWithTools(
 
 					// If the model wants to use tools
 					if (response.toolCalls && response.toolCalls.length > 0) {
-						// Record tool calls in history as a neutral note — never the raw
-						// `{"tool_calls":…}` JSON, which trains the model to emit tool calls
-						// as plain text instead of via the API field.
-						const calledNames = response.toolCalls.map((tc) => tc.name).join(', ');
-						workingMessages.push({ role: 'assistant', content: `[issued tool calls: ${calledNames}]` });
+						// The assistant turn = its real preamble, never a synthetic note:
+						// the model parrots assistant-format notes into its next reply.
+						if (response.text) workingMessages.push({ role: 'assistant', content: response.text });
+						const resultLines: string[] = [];
 
 						// Execute each tool call
 						for (let i = 0; i < response.toolCalls.length; i++) {
@@ -68,22 +71,23 @@ export async function streamAIWithTools(
 							try {
 								const { result } = await onToolCall(tc);
 								emitToolEvent(controller, 'done', { name: tc.name, result, index: i });
-								// Add tool result message
-								workingMessages.push({
-									role: 'assistant' as const,
-									content: `Tool result for ${tc.name}: ${result}`
-								});
+								resultLines.push(`- ${tc.name}: ${result}`);
 							} catch (e) {
 								const errMsg = (e as Error).message;
 								emitToolEvent(controller, 'error', { name: tc.name, error: errMsg, index: i });
-								workingMessages.push({
-									role: 'assistant' as const,
-									content: `Tool error for ${tc.name}: ${errMsg}`
-								});
+								resultLines.push(`- ${tc.name}: ERROR ${errMsg}`);
 							}
 						}
 
-						// Text (if any) already streamed via `emit`. Continue for follow-up.
+						// Feed results back as a user-role tool message (not a fake
+						// assistant turn) so the model writes a real final reply rather
+						// than parroting an assistant-format note.
+						workingMessages.push({
+							role: 'user',
+							content: `Hasil eksekusi tool:\n${resultLines.join('\n')}\n\nBalas singkat ke user dalam bahasa yang sama. Jangan menyebut tool, JSON, atau document_id.`
+						});
+
+						if (++toolRounds >= MAX_TOOL_ROUNDS) break;
 						continue;
 					}
 

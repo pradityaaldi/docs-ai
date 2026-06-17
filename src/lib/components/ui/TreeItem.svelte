@@ -16,10 +16,11 @@
 
 	interface Props {
 		node: TreeNode;
+		depth?: number;
 		onNavigateInto: (folderId: string | null) => void;
 	}
 
-	let { node, onNavigateInto }: Props = $props();
+	let { node, depth = 0, onNavigateInto }: Props = $props();
 	let loaded = $state(false);
 	let subfolders: TreeNode[] = $state([]);
 	let subDocuments: DocEntry[] = $state([]);
@@ -65,16 +66,13 @@
 	}
 
 	let isExpanded = $derived(app.expandedFolderIds.has(node.id));
-	let displayDocCount = $derived(
-		loaded ? subDocuments.length + node.documents.length : node.documents.length
-	);
 </script>
 
 <TreeRow
 	label={node.name}
 	expandable
 	expanded={isExpanded}
-	count={displayDocCount}
+	{depth}
 	onActivate={toggle}
 >
 	{#snippet leading()}
@@ -92,22 +90,21 @@
 </TreeRow>
 
 {#if isExpanded}
-	<div class="ml-3 border-l border-[var(--border-base)] pl-1.5">
-		{#each node.documents as doc (doc.id)}
-			<FileRow id={doc.id} title={doc.title} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
+	{#each node.documents as doc (doc.id)}
+		<FileRow id={doc.id} title={doc.title} depth={depth + 1} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
+	{/each}
+
+	{#if loaded}
+		{#each subfolders as sf (sf.id)}
+			<TreeItem
+				node={{ id: sf.id, name: sf.name, type: 'folder', parent_id: node.id, children: [], documents: [] }}
+				depth={depth + 1}
+				{onNavigateInto}
+			/>
 		{/each}
 
-		{#if loaded}
-			{#each subfolders as sf (sf.id)}
-				<TreeItem
-					node={{ id: sf.id, name: sf.name, type: 'folder', parent_id: node.id, children: [], documents: [] }}
-					{onNavigateInto}
-				/>
-			{/each}
-
-			{#each subDocuments as sdoc (sdoc.id)}
-				<FileRow id={sdoc.id} title={sdoc.title} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
-			{/each}
-		{/if}
-	</div>
+		{#each subDocuments as sdoc (sdoc.id)}
+			<FileRow id={sdoc.id} title={sdoc.title} depth={depth + 1} onSelect={(id) => selectDocument({ id })} onDelete={onDeleteDoc} />
+		{/each}
+	{/if}
 {/if}

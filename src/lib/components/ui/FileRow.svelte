@@ -9,15 +9,16 @@
 	interface Props {
 		id: string;
 		title: string;
+		depth?: number;
 		onSelect: (id: string) => void;
 		onDelete: (id: string) => void;
 	}
 
-	let { id, title, onSelect, onDelete }: Props = $props();
+	let { id, title, depth = 0, onSelect, onDelete }: Props = $props();
 	let active = $derived(app.currentDoc?.id === id);
 </script>
 
-<TreeRow label={title} {active} onActivate={() => onSelect(id)}>
+<TreeRow label={title} {active} {depth} onActivate={() => onSelect(id)}>
 	{#snippet leading()}
 		<FileTextIcon size={14} class="shrink-0 text-[var(--fg-muted)]" />
 	{/snippet}
